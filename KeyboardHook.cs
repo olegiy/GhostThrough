@@ -10,6 +10,7 @@ namespace PeekThrough
         private NativeMethods.LowLevelKeyboardProc _proc;
         private IntPtr _hookID = IntPtr.Zero;
         private SynchronizationContext _syncContext;
+        private bool _disposed = false;
 
         public event Action OnLWinDown;
         public event Action OnLWinUp;
@@ -23,7 +24,16 @@ namespace PeekThrough
 
         public void Dispose()
         {
-            NativeMethods.UnhookWindowsHookEx(_hookID);
+            if (!_disposed)
+            {
+                if (_hookID != IntPtr.Zero)
+                {
+                    NativeMethods.UnhookWindowsHookEx(_hookID);
+                    _hookID = IntPtr.Zero;
+                }
+                _disposed = true;
+            }
+            GC.SuppressFinalize(this);
         }
 
         private IntPtr SetHook(NativeMethods.LowLevelKeyboardProc proc)
@@ -43,26 +53,37 @@ namespace PeekThrough
                 int vkCode = Marshal.ReadInt32(lParam);
                 if (vkCode == NativeMethods.VK_LWIN)
                 {
+                    // Безопасное копирование события для проверки null
+                    Action handler = null;
+                    
                     if (wParam == (IntPtr)NativeMethods.WM_KEYDOWN)
                     {
-                        _syncContext.Post(state =>
-                        {
-                            Action handler = OnLWinDown;
-                            if (handler != null) handler();
-                        }, null);
-                        // Swallow the key to prevent Start Menu from popping up immediately
-                        // Application logic will simulate it later if needed.
-                        return (IntPtr)1; 
+                        handler = OnLWinDown;
                     }
                     else if (wParam == (IntPtr)NativeMethods.WM_KEYUP)
                     {
+                        handler = OnLWinUp;
+                    }
+
+                    // Вызов обработчика с обработкой исключений
+                    if (handler != null)
+                    {
                         _syncContext.Post(state =>
                         {
-                            Action handler = OnLWinUp;
-                            if (handler != null) handler();
+                            try
+                            {
+                                handler();
+                            }
+                            catch (Exception ex)
+                            {
+                                // Не прерываем цепочку хуков при ошибке обработчика
+                                System.Diagnostics.Debug.WriteLine("Hook handler error: " + ex.Message);
+                            }
                         }, null);
-                        return (IntPtr)1;
                     }
+                    
+                    // Всегда подавляем стандартное поведение Win клавиши
+                    return (IntPtr)1;
                 }
             }
             return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);
