@@ -1,0 +1,58 @@
+# --- Build Outputs ---
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+*.cache
+*.ilk
+*.exp
+*.lib
+
+# --- Visual Studio / VS Code ---
+.vs/
+*.user
+*.suo
+*.userprefs
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# --- JetBrains Rider / IntelliJ ---
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# --- NuGet ---
+packages/
+*.nupkg
+project.lock.json
+
+# --- Logs ---
+*.log
+
+# --- Environment & Secrets ---
+.env
+.env.*
+*.key
+*.pem
+
+# --- System Files ---
+# macOS
+.DS_Store
+.AppleDouble
+
+# Windows
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# --- Temporary Files ---
+*.tmp
+*.temp
+*~
+*.swp
+*.bak
