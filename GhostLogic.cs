@@ -8,6 +8,7 @@ namespace PeekThrough
 {
     internal class GhostLogic : IDisposable
     {
+        private readonly object _lockObject = new object();
         private Timer _timer;
         private bool _isLWinDown;
         private bool _ghostModeActive;
@@ -45,37 +46,46 @@ namespace PeekThrough
 
         public void OnKeyDown()
         {
-            if (_isLWinDown) return;
-            _isLWinDown = true;
-            _timer.Start();
+            lock (_lockObject)
+            {
+                if (_isLWinDown) return;
+                _isLWinDown = true;
+                _timer.Start();
+            }
         }
 
         public void OnKeyUp()
         {
-            _isLWinDown = false;
-            _timer.Stop();
+            lock (_lockObject)
+            {
+                _isLWinDown = false;
+                _timer.Stop();
 
-            if (_ghostModeActive)
-            {
-                // Deactivate Ghost Mode
-                RestoreWindow();
-                HideTooltip();
-                NativeMethods.Beep(500, 50);
-                _ghostModeActive = false;
-            }
-            else
-            {
-                // It was a short press, trigger Start Menu
-                SendLWinClick();
+                if (_ghostModeActive)
+                {
+                    // Deactivate Ghost Mode
+                    RestoreWindow();
+                    HideTooltip();
+                    NativeMethods.Beep(500, 50);
+                    _ghostModeActive = false;
+                }
+                else
+                {
+                    // It was a short press, trigger Start Menu
+                    SendLWinClick();
+                }
             }
         }
 
         private void OnTimerTick(object sender, EventArgs e)
         {
-            _timer.Stop(); // One-shot trigger check
-            if (_isLWinDown)
+            lock (_lockObject)
             {
-                ActivateGhostMode();
+                _timer.Stop(); // One-shot trigger check
+                if (_isLWinDown)
+                {
+                    ActivateGhostMode();
+                }
             }
         }
 
@@ -92,18 +102,21 @@ namespace PeekThrough
             NativeMethods.GetClassName(hwnd, className, 256);
             string cls = className.ToString();
 
-            if (cls == "Progman" || cls == "WorkerW" || cls == "Shell_TrayWnd")
+            lock (_lockObject)
             {
-                // Ignore these windows, just act as if held but do nothing
-                // The AHK script just waits for key up in this case without doing anything.
-                 // We simply mark ghost mode active so we don't trigger Start Menu, but we don't apply effects.
-                 _ghostModeActive = true; 
-                 // Optionally continue waiting
-                 return;
-            }
+                if (cls == "Progman" || cls == "WorkerW" || cls == "Shell_TrayWnd")
+                {
+                    // Ignore these windows, just act as if held but do nothing
+                    // The AHK script just waits for key up in this case without doing anything.
+                     // We simply mark ghost mode active so we don't trigger Start Menu, but we don't apply effects.
+                     _ghostModeActive = true; 
+                     // Optionally continue waiting
+                     return;
+                }
 
-            _targetHwnd = hwnd;
-            _ghostModeActive = true;
+                _targetHwnd = hwnd;
+                _ghostModeActive = true;
+            }
 
             try
             {
@@ -130,33 +143,35 @@ namespace PeekThrough
         {
             if (_targetHwnd != IntPtr.Zero && _hasOriginalExStyle)
             {
-                // Check if window still valid?
-                // Restore logic
-                NativeMethods.SetWindowLong(_targetHwnd, NativeMethods.GWL_EXSTYLE, _originalExStyle);
-                // We might need to reset Layered attributes? 
-                // Setting generic style back should be enough.
-                // However, if the window was ALREADY layered, we might have messed it up.
-                // AHK script does: WinSetExStyle(-0x20) -> turn off clickthrough
-                // WinSetTransparent("Off")
-                
-                // For proper restoration similar to AHK:
-                // We removed WS_EX_TRANSPARENT (0x20).
-                // We also need to remove transparency (make it opaque).
-                // Simplest way is setting LWA_ALPHA to 255 if it was layered, or removing WS_EX_LAYERED if it wasn't.
-                // But blindly restoring _originalExStyle is usually safe.
-                
-                // Also reset opacity to 255 (Opaque) just in case
-                if ((_originalExStyle & NativeMethods.WS_EX_LAYERED) != 0)
+                // Проверка валидности окна перед манипуляциями
+                if (!NativeMethods.IsWindow(_targetHwnd))
                 {
-                     NativeMethods.SetLayeredWindowAttributes(_targetHwnd, 0, 255, NativeMethods.LWA_ALPHA);
-                }
-                else
-                {
-                     // If it wasn't layered, restoring ExStyle removes WS_EX_LAYERED, so attributes are reset.
+                    // Окно уже закрыто, просто сбрасываем состояние
+                    _targetHwnd = IntPtr.Zero;
+                    _hasOriginalExStyle = false;
+                    return;
                 }
 
-                _targetHwnd = IntPtr.Zero;
-                _hasOriginalExStyle = false;
+                try
+                {
+                    NativeMethods.SetWindowLong(_targetHwnd, NativeMethods.GWL_EXSTYLE, _originalExStyle);
+                    
+                    // Восстановление прозрачности
+                    if ((_originalExStyle & NativeMethods.WS_EX_LAYERED) != 0)
+                    {
+                        NativeMethods.SetLayeredWindowAttributes(_targetHwnd, 0, 255, NativeMethods.LWA_ALPHA);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Логирование ошибки в Debug output
+                    System.Diagnostics.Debug.WriteLine("RestoreWindow error: " + ex.Message);
+                }
+                finally
+                {
+                    _targetHwnd = IntPtr.Zero;
+                    _hasOriginalExStyle = false;
+                }
             }
         }
 
@@ -189,9 +204,12 @@ namespace PeekThrough
 
         public void Dispose()
         {
-            if (_timer != null) _timer.Dispose();
-            if (_tooltipForm != null) _tooltipForm.Dispose();
-            RestoreWindow();
+            lock (_lockObject)
+            {
+                if (_timer != null) _timer.Dispose();
+                if (_tooltipForm != null) _tooltipForm.Dispose();
+                RestoreWindow();
+            }
         }
     }
 }

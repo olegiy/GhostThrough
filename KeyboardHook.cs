@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace PeekThrough
 {
@@ -8,6 +9,7 @@ namespace PeekThrough
     {
         private NativeMethods.LowLevelKeyboardProc _proc;
         private IntPtr _hookID = IntPtr.Zero;
+        private SynchronizationContext _syncContext;
 
         public event Action OnLWinDown;
         public event Action OnLWinUp;
@@ -15,6 +17,7 @@ namespace PeekThrough
         public KeyboardHook()
         {
             _proc = HookCallback;
+            _syncContext = SynchronizationContext.Current ?? new SynchronizationContext();
             _hookID = SetHook(_proc);
         }
 
@@ -42,16 +45,22 @@ namespace PeekThrough
                 {
                     if (wParam == (IntPtr)NativeMethods.WM_KEYDOWN)
                     {
-                        Action handler = OnLWinDown;
-                        if (handler != null) handler();
+                        _syncContext.Post(state =>
+                        {
+                            Action handler = OnLWinDown;
+                            if (handler != null) handler();
+                        }, null);
                         // Swallow the key to prevent Start Menu from popping up immediately
                         // Application logic will simulate it later if needed.
                         return (IntPtr)1; 
                     }
                     else if (wParam == (IntPtr)NativeMethods.WM_KEYUP)
                     {
-                        Action handler = OnLWinUp;
-                        if (handler != null) handler();
+                        _syncContext.Post(state =>
+                        {
+                            Action handler = OnLWinUp;
+                            if (handler != null) handler();
+                        }, null);
                         return (IntPtr)1;
                     }
                 }

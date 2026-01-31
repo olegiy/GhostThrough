@@ -53,6 +53,10 @@ namespace PeekThrough
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool Beep(int frequency, int duration);
 
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool IsWindow(IntPtr hWnd);
+
         // Constants
         public const int WH_KEYBOARD_LL = 13;
         public const int WM_KEYDOWN = 0x0100;
