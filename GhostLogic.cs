@@ -11,6 +11,18 @@ namespace PeekThrough
     {
         // Публичное свойство для проверки, нужно ли подавлять клавишу Win
         public bool ShouldSuppressWinKey { get; private set; }
+        
+        // Публичное свойство для проверки, активен ли Ghost Mode
+        public bool IsGhostModeActive
+        {
+            get
+            {
+                lock (_lockObject)
+                {
+                    return _ghostModeActive;
+                }
+            }
+        }
 
         // Константы
         private const int GHOST_MODE_ACTIVATION_DELAY_MS = 500;
@@ -115,6 +127,25 @@ namespace PeekThrough
                     // It was a short press - Windows will handle the key event normally
                     // No need to simulate the key press since we're not suppressing it
                 }
+            }
+        }
+
+        // Публичный метод для деактивации Ghost Mode извне (например, при нажатии другой клавиши)
+        public void DeactivateGhostMode()
+        {
+            lock (_lockObject)
+            {
+                if (!_ghostModeActive) return;
+                
+                _isLWinDown = false;
+                _timer.Stop();
+                
+                // Deactivate Ghost Mode
+                RestoreWindow();
+                HideTooltip();
+                NativeMethods.Beep(BEEP_FREQUENCY_DEACTIVATE, BEEP_DURATION_MS);
+                _ghostModeActive = false;
+                ShouldSuppressWinKey = false;
             }
         }
 

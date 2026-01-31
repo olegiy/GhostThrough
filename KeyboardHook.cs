@@ -91,6 +91,25 @@ namespace PeekThrough
                         return (IntPtr)1;
                     }
                 }
+                else if (wParam == (IntPtr)NativeMethods.WM_KEYDOWN)
+                {
+                    // Если нажата любая другая клавиша и Ghost Mode активен,
+                    // отключаем Ghost Mode и пропускаем клавишу для стандартной обработки
+                    if (_ghostLogic != null && _ghostLogic.IsGhostModeActive)
+                    {
+                        _syncContext.Post(state =>
+                        {
+                            try
+                            {
+                                _ghostLogic.DeactivateGhostMode();
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine("DeactivateGhostMode error: " + ex.Message);
+                            }
+                        }, null);
+                    }
+                }
             }
             return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
