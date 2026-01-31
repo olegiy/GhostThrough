@@ -48,7 +48,7 @@ pnpm-debug.log*
 .shared/
 .kilocodemodes
 .kilocodeignore
-geminiignore
+
 
 # Temporary and Generated files
 *_output.md
