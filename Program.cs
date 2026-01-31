@@ -30,8 +30,33 @@ namespace PeekThrough
                 _hook.OnLWinUp += _logic.OnKeyUp;
                 _hook.OnOtherKeyPressedBeforeWin += _logic.BlockGhostMode;
 
-                // Create a dummy ApplicationContext to run the loop without a main form visible at start
-                Application.Run();
+                // Setup Tray Icon
+                using (var trayIcon = new NotifyIcon())
+                {
+                    trayIcon.Text = "PeekThrough Ghost Mode";
+                    
+                    // Try to load icon from resources folder
+                    string iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "resources", "icons", "icon.ico");
+                    if (System.IO.File.Exists(iconPath))
+                    {
+                        trayIcon.Icon = new System.Drawing.Icon(iconPath);
+                    }
+                    else
+                    {
+                        // Fallback to generic icon if file not found
+                        trayIcon.Icon = System.Drawing.SystemIcons.Application;
+                    }
+
+                    var contextMenu = new ContextMenu();
+                    contextMenu.MenuItems.Add("Exit", (s, e) => Application.Exit());
+                    trayIcon.ContextMenu = contextMenu;
+                    trayIcon.Visible = true;
+
+                    // Create a dummy ApplicationContext to run the loop without a main form visible at start
+                    Application.Run();
+
+                    trayIcon.Visible = false;
+                }
 
                 _hook.Dispose();
                 _logic.Dispose();

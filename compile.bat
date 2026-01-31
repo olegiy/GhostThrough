@@ -30,6 +30,7 @@ exit /b 1
 echo Using compiler: %CSC_PATH%
 
 "%CSC_PATH%" /target:winexe /out:PeekThrough.exe ^
+    /win32icon:resources\icons\icon.ico ^
     /reference:System.Windows.Forms.dll ^
     /reference:System.Drawing.dll ^
     /optimize ^
