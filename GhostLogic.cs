@@ -24,8 +24,8 @@ namespace PeekThrough
             {
                 lock (_lockObject)
                 {
-                    // Подавляем Win только когда Ghost Mode активен
-                    return _ghostModeActive;
+                    // Подавляем Win когда Ghost Mode активен ИЛИ в течение задержки после деактивации
+                    return _ghostModeActive || _suppressWinKey;
                 }
             }
         }
@@ -44,6 +44,7 @@ namespace PeekThrough
 
         // Константы
         private const int GHOST_MODE_ACTIVATION_DELAY_MS = 1000;
+        private const int SUPPRESS_WIN_AFTER_DEACTIVATE_MS = 100; // Задержка подавления Win после деактивации
         private const int BEEP_FREQUENCY_ACTIVATE = 1000;
         private const int BEEP_FREQUENCY_DEACTIVATE = 500;
         private const int BEEP_FREQUENCY_ADD = 1500; // Более высокий тон для добавления окна
@@ -57,10 +58,11 @@ namespace PeekThrough
 
         private readonly object _lockObject = new object();
         private Timer _timer;
+        private Timer _suppressWinTimer; // Таймер для подавления Win после деактивации
         private bool _isLWinDown;
         private bool _ghostModeActive;
+        private bool _suppressWinKey; // Флаг: подавлять Win после деактивации
         private bool _timerFired; // Флаг: сработал ли таймер (длинное нажатие)
-        private bool _releasedAfterActivation; // Флаг: было ли отпускание после активации (для деактивации при повторном удержании)
         
         // Список окон в Ghost Mode
         private List<GhostWindowState> _ghostWindows = new List<GhostWindowState>();
@@ -88,6 +90,10 @@ namespace PeekThrough
             _timer = new Timer();
             _timer.Interval = GHOST_MODE_ACTIVATION_DELAY_MS;
             _timer.Tick += OnTimerTick;
+
+            _suppressWinTimer = new Timer();
+            _suppressWinTimer.Interval = SUPPRESS_WIN_AFTER_DEACTIVATE_MS;
+            _suppressWinTimer.Tick += OnSuppressWinTimerTick;
 
             // Initialize Tooltip Form с прозрачностью настройками
             _tooltipForm = new Form();
@@ -155,31 +161,20 @@ namespace PeekThrough
 
                 if (_ghostModeActive)
                 {
-                    if (_timerFired && _releasedAfterActivation)
-                    {
-                        // Повторное удержание+отпускание - деактивируем Ghost Mode
-                        DebugLogger.Log("OnKeyUp: Long press after release - deactivating Ghost Mode");
-                        RestoreAllWindows();
-                        HideTooltip();
-                        NativeMethods.Beep(BEEP_FREQUENCY_DEACTIVATE, BEEP_DURATION_MS);
-                        _ghostModeActive = false;
-                        _ghostWindows.Clear();
-                        _currentTargetHwnd = IntPtr.Zero;
-                        _lastActivatedHwnd = IntPtr.Zero;
-                        _releasedAfterActivation = false;
-                    }
-                    else if (_timerFired)
-                    {
-                        // Первое отпускание после активации - НЕ деактивируем
-                        DebugLogger.Log("OnKeyUp: First release after activation - keeping Ghost Mode active");
-                        _releasedAfterActivation = true;
-                    }
-                    else
-                    {
-                        // Был короткий - ничего не делаем (Ghost Mode остаётся активным)
-                        DebugLogger.Log("OnKeyUp: Short press - ignoring, Ghost Mode stays active");
-                    }
-                    _timerFired = false;
+                    // Отпускание Win при активном Ghost Mode - деактивируем
+                    DebugLogger.Log("OnKeyUp: Ghost Mode active on release - deactivating Ghost Mode");
+                    RestoreAllWindows();
+                    HideTooltip();
+                    NativeMethods.Beep(BEEP_FREQUENCY_DEACTIVATE, BEEP_DURATION_MS);
+                    _ghostModeActive = false;
+                    _ghostWindows.Clear();
+                    _currentTargetHwnd = IntPtr.Zero;
+                    _lastActivatedHwnd = IntPtr.Zero;
+
+                    // Включаем подавление Win на короткое время после деактивации
+                    _suppressWinKey = true;
+                    _suppressWinTimer.Start();
+                    DebugLogger.Log("OnKeyUp: Started Win suppression timer");
                 }
 
                 DebugLogger.LogState("OnKeyUp EXIT", _isLWinDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
@@ -211,7 +206,6 @@ namespace PeekThrough
                 _ghostModeActive = false;
                 _ghostWindows.Clear();
                 _currentTargetHwnd = IntPtr.Zero;
-                _releasedAfterActivation = false;
             }
         }
         
@@ -244,6 +238,50 @@ namespace PeekThrough
                     DebugLogger.Log("OnTimerTick: _isLWinDown is false, not activating");
                 }
             }
+        }
+
+        private void OnSuppressWinTimerTick(object sender, EventArgs e)
+        {
+            DebugLogger.Log("=== OnSuppressWinTimerTick ===");
+            lock (_lockObject)
+            {
+                _suppressWinTimer.Stop();
+                _suppressWinKey = false;
+            }
+
+            // Эмулируем Win+Ctrl комбинацию для предотвращения меню Пуск
+            SendWinReleaseWithCtrl();
+        }
+
+        private void SendWinReleaseWithCtrl()
+        {
+            DebugLogger.Log("SendWinReleaseWithCtrl: Pressing Ctrl, releasing Ctrl, then releasing Win");
+
+            // Последовательность: Ctrl down -> Ctrl up -> Win up
+            NativeMethods.INPUT[] inputs = new NativeMethods.INPUT[3];
+            
+            // Нажимаем Ctrl
+            inputs[0].type = NativeMethods.INPUT_KEYBOARD;
+            inputs[0].U.ki.wVk = NativeMethods.VK_CONTROL;
+            inputs[0].U.ki.dwFlags = 0;
+            inputs[0].U.ki.time = 0;
+            inputs[0].U.ki.dwExtraInfo = IntPtr.Zero;
+
+            // Отпускаем Ctrl
+            inputs[1].type = NativeMethods.INPUT_KEYBOARD;
+            inputs[1].U.ki.wVk = NativeMethods.VK_CONTROL;
+            inputs[1].U.ki.dwFlags = NativeMethods.KEYEVENTF_KEYUP;
+            inputs[1].U.ki.time = 0;
+            inputs[1].U.ki.dwExtraInfo = IntPtr.Zero;
+
+            // Отпускаем Win
+            inputs[2].type = NativeMethods.INPUT_KEYBOARD;
+            inputs[2].U.ki.wVk = NativeMethods.VK_LWIN;
+            inputs[2].U.ki.dwFlags = NativeMethods.KEYEVENTF_KEYUP;
+            inputs[2].U.ki.time = 0;
+            inputs[2].U.ki.dwExtraInfo = IntPtr.Zero;
+
+            NativeMethods.SendInput(3, inputs, NativeMethods.INPUT.Size);
         }
 
         private void ActivateGhostMode()
@@ -301,7 +339,6 @@ namespace PeekThrough
                 _currentTargetHwnd = hwnd;
                 _lastActivatedHwnd = hwnd;
                 _ghostModeActive = true;
-                _releasedAfterActivation = false;
                 DebugLogger.LogState("ActivateGhostMode - set active", _isLWinDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
             }
 
@@ -427,19 +464,24 @@ namespace PeekThrough
             if (disposing)
             {
                 Timer timerToDispose = null;
+                Timer suppressTimerToDispose = null;
                 Form formToDispose = null;
 
                 lock (_lockObject)
                 {
                     timerToDispose = _timer;
                     _timer = null;
+                    suppressTimerToDispose = _suppressWinTimer;
+                    _suppressWinTimer = null;
                     formToDispose = _tooltipForm;
                     _tooltipForm = null;
                 }
 
-            if (timerToDispose != null) timerToDispose.Stop();
-            if (timerToDispose != null) timerToDispose.Dispose();
-            if (formToDispose != null) formToDispose.Dispose();
+                if (timerToDispose != null) timerToDispose.Stop();
+                if (timerToDispose != null) timerToDispose.Dispose();
+                if (suppressTimerToDispose != null) suppressTimerToDispose.Stop();
+                if (suppressTimerToDispose != null) suppressTimerToDispose.Dispose();
+                if (formToDispose != null) formToDispose.Dispose();
 
                 RestoreAllWindows();
             }

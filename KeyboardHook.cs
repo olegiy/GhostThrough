@@ -120,16 +120,17 @@ namespace PeekThrough
                         }, null);
                     }
 
-                    // Подавляем стандартное поведение Win клавиши
-                    // Проверяем состояние ПЕРЕД тем как отпустить событие
-                    bool isGhostActive = _ghostLogic != null && _ghostLogic.IsGhostModeActive;
-                    DebugLogger.Log(string.Format("HookCallback: IsGhostModeActive = {0}", isGhostActive));
+            // Подавляем стандартное поведение Win клавиши
+            // Проверяем состояние ПЕРЕД тем как отпустить событие
+            bool shouldSuppress = _ghostLogic != null && _ghostLogic.ShouldSuppressWinKey;
+            DebugLogger.Log(string.Format("HookCallback: ShouldSuppressWinKey = {0}", shouldSuppress));
 
-                    if (isGhostActive)
-                    {
-                        DebugLogger.Log("HookCallback: SUPPRESSING Win key event!");
-                        return (IntPtr)1;
-                    }
+            if (shouldSuppress)
+            {
+                // Подавляем все события Win (KEYDOWN и KEYUP) когда активен Ghost Mode или задержка
+                DebugLogger.Log("HookCallback: SUPPRESSING Win key event!");
+                return (IntPtr)1;
+            }
                 }
                 else
                 {
