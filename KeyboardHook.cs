@@ -16,6 +16,9 @@ namespace PeekThrough
         
         // Отслеживание нажатых клавиш (кроме Win)
         private HashSet<int> _pressedKeys = new HashSet<int>();
+        
+        // Флаг: была ли нажата другая клавиша ПОСЛЕ Win
+        private bool _keyPressedAfterWin = false;
 
         public event Action OnLWinDown;
         public event Action OnLWinUp;
@@ -80,6 +83,9 @@ namespace PeekThrough
 
                     if (wParam == (IntPtr)NativeMethods.WM_KEYDOWN)
                     {
+                        // Сбрасываем флаг при новом нажатии Win
+                        _keyPressedAfterWin = false;
+                        
                         // Если нажата другая клавиша до Win - не активируем Ghost Mode
                         if (_pressedKeys.Count > 0)
                         {
@@ -101,7 +107,28 @@ namespace PeekThrough
                     }
                     else if (wParam == (IntPtr)NativeMethods.WM_KEYUP)
                     {
-                        handler = OnLWinUp;
+                        // При отпускании Win проверяем, была ли нажата клавиша после
+                        if (_keyPressedAfterWin)
+                        {
+                            DebugLogger.Log("HookCallback: Win released but key was pressed after Win - blocking Ghost Mode");
+                            // Блокируем активацию Ghost Mode
+                            Action otherKeyHandler = OnOtherKeyPressedBeforeWin;
+                            if (otherKeyHandler != null)
+                            {
+                                _syncContext.Post(state =>
+                                {
+                                    try { otherKeyHandler(); }
+                                    catch (Exception ex) { DebugLogger.Log(string.Format("OtherKey handler error on Win release: {0}", ex.Message)); }
+                                }, null);
+                            }
+                        }
+                        else
+                        {
+                            handler = OnLWinUp;
+                        }
+                        
+                        // Сбрасываем флаг после обработки
+                        _keyPressedAfterWin = false;
                     }
 
                     // Вызов обработчика с обработкой исключений
@@ -139,7 +166,14 @@ namespace PeekThrough
                     {
                         _pressedKeys.Add(vkCode);
                         DebugLogger.Log(string.Format("HookCallback: Other key DOWN, vkCode={0}, total pressed: {1}", vkCode, _pressedKeys.Count));
-                        
+
+                        // Если Win сейчас нажат, отмечаем что клавиша нажата ПОСЛЕ Win
+                        if (_ghostLogic != null && _ghostLogic.IsLWinPressed)
+                        {
+                            _keyPressedAfterWin = true;
+                            DebugLogger.Log("HookCallback: Key pressed AFTER Win - will block Ghost Mode");
+                        }
+
                         // Если нажата любая другая клавиша и Ghost Mode активен,
                         // отключаем Ghost Mode и пропускаем клавишу для стандартной обработки
                         if (_ghostLogic != null && _ghostLogic.IsGhostModeActive)

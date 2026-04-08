@@ -42,6 +42,18 @@ namespace PeekThrough
             }
         }
 
+        // Публичное свойство для проверки, нажата ли клавиша Win
+        public bool IsLWinPressed
+        {
+            get
+            {
+                lock (_lockObject)
+                {
+                    return _isLWinDown;
+                }
+            }
+        }
+
         // Константы
         private const int GHOST_MODE_ACTIVATION_DELAY_MS = 1000;
         private const int SUPPRESS_WIN_AFTER_DEACTIVATE_MS = 100; // Задержка подавления Win после деактивации
@@ -146,6 +158,8 @@ namespace PeekThrough
                 // Перезапускаем таймер (для активации ИЛИ деактивации)
                 _timer.Stop();
                 _timer.Start();
+                
+                DebugLogger.Log("OnKeyDown: Started ghost mode timer");
             }
         }
 
@@ -175,6 +189,10 @@ namespace PeekThrough
                     _suppressWinKey = true;
                     _suppressWinTimer.Start();
                     DebugLogger.Log("OnKeyUp: Started Win suppression timer");
+                }
+                else if (!_timerFired)
+                {
+                    DebugLogger.Log("OnKeyUp: Ghost mode not active and timer didn't fire - short press");
                 }
 
                 DebugLogger.LogState("OnKeyUp EXIT", _isLWinDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
@@ -209,15 +227,19 @@ namespace PeekThrough
             }
         }
         
-        // Публичный метод для блокировки активации Ghost Mode (когда нажата другая клавиша до Win)
+        // Публичный метод для блокировки активации Ghost Mode (когда нажата другая клавиша до ИЛИ после Win)
         public void BlockGhostMode()
         {
             DebugLogger.Log("=== BlockGhostMode ===");
             lock (_lockObject)
             {
                 // Если еще не было нажатия кнопки Win, отменяем возможную активацию Ghost Mode
+                // ИЛИ если Win отпущен, предотвращаем активацию
                 _isLWinDown = false;
+                _timerFired = false;
                 _timer.Stop();
+                
+                DebugLogger.Log("BlockGhostMode: Ghost mode activation blocked");
             }
         }
 
