@@ -66,10 +66,10 @@ namespace PeekThrough
                 if (vkCode == NativeMethods.VK_LWIN)
                 {
                     DebugLogger.Log(string.Format("HookCallback: LWin detected, wParam={0}", wParam));
-                    
+
                     // Безопасное копирование события для проверки null
                     Action handler = null;
-                    
+
                     if (wParam == (IntPtr)NativeMethods.WM_KEYDOWN)
                     {
                         // Если нажата другая клавиша до Win - не активируем Ghost Mode
@@ -111,12 +111,13 @@ namespace PeekThrough
                             }
                         }, null);
                     }
-                    
-                    // Подавляем стандартное поведение Win клавиши только если активен Ghost Mode
-                    bool shouldSuppress = _ghostLogic != null && _ghostLogic.ShouldSuppressWinKey;
-                    DebugLogger.Log(string.Format("HookCallback: ShouldSuppressWinKey = {0}", shouldSuppress));
-                    
-                    if (shouldSuppress)
+
+                    // Подавляем стандартное поведение Win клавиши
+                    // Проверяем состояние ПЕРЕД тем как отпустить событие
+                    bool isGhostActive = _ghostLogic != null && _ghostLogic.IsGhostModeActive;
+                    DebugLogger.Log(string.Format("HookCallback: IsGhostModeActive = {0}", isGhostActive));
+
+                    if (isGhostActive)
                     {
                         DebugLogger.Log("HookCallback: SUPPRESSING Win key event!");
                         return (IntPtr)1;
