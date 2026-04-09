@@ -17,6 +17,13 @@ namespace PeekThrough
 
     internal class GhostLogic : IDisposable
     {
+        // Тип активации Ghost Mode
+        public enum ActivationType
+        {
+            Keyboard, // Активация с помощью клавиатуры (Win)
+            Mouse     // Активация с помощью мыши
+        }
+        
         // Публичное свойство для проверки, нужно ли подавлять стандартное поведение Win
         public bool ShouldSuppressWinKey
         {
@@ -41,6 +48,18 @@ namespace PeekThrough
                 }
             }
         }
+        
+        // Публичное свойство для проверки, активна ли клавиша мыши
+        public bool IsMouseActivationActive
+        {
+            get
+            {
+                lock (_lockObject)
+                {
+                    return _isMouseButtonDown;
+                }
+            }
+        }
 
         // Публичное свойство для проверки, нажата ли клавиша Win
         public bool IsLWinPressed
@@ -50,6 +69,18 @@ namespace PeekThrough
                 lock (_lockObject)
                 {
                     return _isLWinDown;
+                }
+            }
+        }
+        
+        // Публичное свойство для получения типа активации
+        public ActivationType CurrentActivationType
+        {
+            get
+            {
+                lock (_lockObject)
+                {
+                    return _activationType;
                 }
             }
         }
@@ -72,9 +103,11 @@ namespace PeekThrough
         private Timer _timer;
         private Timer _suppressWinTimer; // Таймер для подавления Win после деактивации
         private bool _isLWinDown;
+        private bool _isMouseButtonDown; // Флаг: нажата ли выбранная кнопка мыши
         private bool _ghostModeActive;
         private bool _suppressWinKey; // Флаг: подавлять Win после деактивации
         private bool _timerFired; // Флаг: сработал ли таймер (длинное нажатие)
+        private ActivationType _activationType; // Тип активации (клавиатура или мышь)
         
         // Список окон в Ghost Mode
         private List<GhostWindowState> _ghostWindows = new List<GhostWindowState>();
@@ -97,8 +130,9 @@ namespace PeekThrough
             "Progman", "WorkerW", "Shell_TrayWnd"
         };
 
-        public GhostLogic()
+        public GhostLogic(ActivationType activationType = ActivationType.Keyboard)
         {
+            _activationType = activationType;
             _timer = new Timer();
             _timer.Interval = GHOST_MODE_ACTIVATION_DELAY_MS;
             _timer.Tick += OnTimerTick;
@@ -143,6 +177,12 @@ namespace PeekThrough
 
         public void OnKeyDown()
         {
+            if (_activationType == ActivationType.Mouse)
+            {
+                // Если используется активация мышью, игнорируем нажатие клавиши
+                return;
+            }
+            
             DebugLogger.Log("=== OnKeyDown START ===");
             lock (_lockObject)
             {
@@ -160,6 +200,34 @@ namespace PeekThrough
                 _timer.Start();
                 
                 DebugLogger.Log("OnKeyDown: Started ghost mode timer");
+            }
+        }
+        
+        public void OnMouseButtonDown()
+        {
+            if (_activationType == ActivationType.Keyboard)
+            {
+                // Если используется активация клавиатурой, игнорируем нажатие мыши
+                return;
+            }
+            
+            DebugLogger.Log("=== OnMouseButtonDown START ===");
+            lock (_lockObject)
+            {
+                if (_isMouseButtonDown)
+                {
+                    DebugLogger.Log("OnMouseButtonDown: _isMouseButtonDown already true, returning");
+                    return;
+                }
+                _isMouseButtonDown = true;
+                _timerFired = false; // Сбрасываем флаг таймера
+                DebugLogger.LogState("OnMouseButtonDown", _isMouseButtonDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
+
+                // Перезапускаем таймер (для активации ИЛИ деактивации)
+                _timer.Stop();
+                _timer.Start();
+                
+                DebugLogger.Log("OnMouseButtonDown: Started ghost mode timer");
             }
         }
 
@@ -199,6 +267,45 @@ namespace PeekThrough
             }
         }
 
+        public void OnMouseButtonUp()
+        {
+            if (_activationType == ActivationType.Keyboard)
+            {
+                // Если используется активация клавиатурой, игнорируем отпускание мыши
+                return;
+            }
+            
+            DebugLogger.Log("=== OnMouseButtonUp START ===");
+            lock (_lockObject)
+            {
+                DebugLogger.LogState("OnMouseButtonUp ENTER", _isMouseButtonDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
+
+                _isMouseButtonDown = false;
+                _timer.Stop();
+
+                if (_ghostModeActive)
+                {
+                    // Отпускание кнопки мыши при активном Ghost Mode - деактивируем
+                    DebugLogger.Log("OnMouseButtonUp: Ghost Mode active on release - deactivating Ghost Mode");
+                    RestoreAllWindows();
+                    HideTooltip();
+                    NativeMethods.Beep(BEEP_FREQUENCY_DEACTIVATE, BEEP_DURATION_MS);
+                    _ghostModeActive = false;
+                    _ghostWindows.Clear();
+                    _currentTargetHwnd = IntPtr.Zero;
+                    _lastActivatedHwnd = IntPtr.Zero;
+                    // Не подавляем Win-клавишу при активации мышью —
+                    // SendWinReleaseWithCtrl не нужен, т.к. Win не использовалась
+                }
+                else if (!_timerFired)
+                {
+                    DebugLogger.Log("OnMouseButtonUp: Ghost mode not active and timer didn't fire - short press");
+                }
+
+                DebugLogger.LogState("OnMouseButtonUp EXIT", _isMouseButtonDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
+            }
+        }
+        
         // Публичный метод для деактивации Ghost Mode извне (например, при нажатии другой клавиши)
         public void DeactivateGhostMode()
         {
@@ -214,6 +321,7 @@ namespace PeekThrough
                 DebugLogger.LogState("DeactivateGhostMode", _isLWinDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
 
                 _isLWinDown = false;
+                _isMouseButtonDown = false; // Также сбрасываем состояние кнопки мыши
                 _timerFired = false;
                 _timer.Stop();
 
@@ -249,15 +357,27 @@ namespace PeekThrough
             lock (_lockObject)
             {
                 _timer.Stop(); // One-shot trigger check
-                if (_isLWinDown)
+                
+                bool shouldActivate = false;
+                
+                if (_activationType == ActivationType.Keyboard)
+                {
+                    shouldActivate = _isLWinDown;
+                }
+                else if (_activationType == ActivationType.Mouse)
+                {
+                    shouldActivate = _isMouseButtonDown;
+                }
+                
+                if (shouldActivate)
                 {
                     _timerFired = true; // Отмечаем что было длинное нажатие (таймер сработал)
-                    DebugLogger.LogState("OnTimerTick - activating", _isLWinDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
+                    DebugLogger.LogState(string.Format("OnTimerTick - activating ({0})", _activationType), _isLWinDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
                     ActivateGhostMode();
                 }
                 else
                 {
-                    DebugLogger.Log("OnTimerTick: _isLWinDown is false, not activating");
+                    DebugLogger.Log(string.Format("OnTimerTick: {0} button is false, not activating", _activationType));
                 }
             }
         }
