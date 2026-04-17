@@ -239,23 +239,8 @@ namespace PeekThrough
                         }
                     }
 
-                    // Если нажата любая другая кнопка мыши и Ghost Mode активен,
-                    // отключаем Ghost Mode и пропускаем кнопку для стандартной обработки
-                    if (isButtonDown && _ghostLogic != null && _ghostLogic.IsGhostModeActive)
-                    {
-                        DebugLogger.Log("HookCallback: Other mouse button pressed while Ghost Mode active, deactivating");
-                        _syncContext.Post(state =>
-                        {
-                            try
-                            {
-                                _ghostLogic.DeactivateGhostMode();
-                            }
-                            catch (Exception ex)
-                            {
-                                DebugLogger.Log(string.Format("DeactivateGhostMode error: {0}", ex.Message));
-                            }
-                        }, null);
-                    }
+                    // Mouse clicks no longer deactivate Ghost Mode (toggle mode)
+                    // User can interact with windows behind the ghost window normally
                 }
             }
             return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);

@@ -155,9 +155,9 @@ namespace PeekThrough
                     if (shouldSuppressGhost)
                     {
                         DebugLogger.Log("HookCallback: SUPPRESSING activation key event (Ghost Mode)!");
-                        
-                        // KEYUP during Ghost Mode: fire handler for deactivation before suppressing
-                        if (wParam == (IntPtr)NativeMethods.WM_KEYUP && handler != null)
+
+                        // KEYDOWN during Ghost Mode: fire handler (for toggle-off timer start)
+                        if (wParam == (IntPtr)NativeMethods.WM_KEYDOWN && handler != null)
                         {
                             _syncContext.Post(state =>
                             {
@@ -165,7 +165,16 @@ namespace PeekThrough
                                 catch (Exception ex) { DebugLogger.Log(string.Format("Hook handler error: {0}", ex.Message)); }
                             }, null);
                         }
-                        
+                        // KEYUP: fire handler (existing behavior)
+                        else if (wParam == (IntPtr)NativeMethods.WM_KEYUP && handler != null)
+                        {
+                            _syncContext.Post(state =>
+                            {
+                                try { handler(); }
+                                catch (Exception ex) { DebugLogger.Log(string.Format("Hook handler error: {0}", ex.Message)); }
+                            }, null);
+                        }
+
                         return (IntPtr)1;
                     }
                     
@@ -194,11 +203,10 @@ namespace PeekThrough
                             DebugLogger.Log("HookCallback: Key pressed AFTER activation key - will block Ghost Mode");
                         }
 
-                        // Если нажата любая другая клавиша и Ghost Mode активен,
-                        // отключаем Ghost Mode и пропускаем клавишу для стандартной обработки
-                        if (_ghostLogic != null && _ghostLogic.IsGhostModeActive)
+                        // Escape key during Ghost Mode - quick exit
+                        if (_ghostLogic != null && _ghostLogic.IsGhostModeActive && vkCode == NativeMethods.VK_ESCAPE)
                         {
-                            DebugLogger.Log("HookCallback: Other key pressed while Ghost Mode active, deactivating");
+                            DebugLogger.Log("HookCallback: Escape pressed while Ghost Mode active, deactivating");
                             _syncContext.Post(state =>
                             {
                                 try

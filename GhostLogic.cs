@@ -252,20 +252,9 @@ namespace PeekThrough
 
                 if (_ghostModeActive)
                 {
-                    // Отпускание Win при активном Ghost Mode - деактивируем
-                    DebugLogger.Log("OnKeyUp: Ghost Mode active on release - deactivating Ghost Mode");
-                    RestoreAllWindows();
-                    HideTooltip();
-                    NativeMethods.Beep(BEEP_FREQUENCY_DEACTIVATE, BEEP_DURATION_MS);
-                    _ghostModeActive = false;
-                    _ghostWindows.Clear();
-                    _currentTargetHwnd = IntPtr.Zero;
-                    _lastActivatedHwnd = IntPtr.Zero;
-
-                    // Включаем подавление Win на короткое время после деактивации
-                    _suppressWinKey = true;
-                    _suppressWinTimer.Start();
-                    DebugLogger.Log("OnKeyUp: Started Win suppression timer");
+                    // Toggle mode: releasing Win does NOT deactivate Ghost Mode
+                    // Deactivation happens via: long press Win again (timer fires) or Escape key
+                    DebugLogger.Log("OnKeyUp: Ghost Mode active on release - staying active (toggle mode)");
                 }
                 else if (!_timerFired)
                 {
@@ -471,8 +460,18 @@ namespace PeekThrough
                 if (shouldActivate)
                 {
                     _timerFired = true; // Отмечаем что было длинное нажатие (таймер сработал)
-                    DebugLogger.LogState(string.Format("OnTimerTick - activating ({0})", _activationType), _isLWinDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
-                    ActivateGhostMode();
+                    if (_ghostModeActive)
+                    {
+                        // Toggle off
+                        DebugLogger.LogState("OnTimerTick - toggling OFF", _isLWinDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
+                        DeactivateGhostMode();
+                    }
+                    else
+                    {
+                        // Activate
+                        DebugLogger.LogState(string.Format("OnTimerTick - activating ({0})", _activationType), _isLWinDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
+                        ActivateGhostMode();
+                    }
                 }
                 else
                 {
@@ -583,12 +582,23 @@ namespace PeekThrough
                 return;
             }
 
+            bool shouldInjectWinUp = false;
             lock (_lockObject)
             {
                 _currentTargetHwnd = hwnd;
                 _lastActivatedHwnd = hwnd;
                 _ghostModeActive = true;
+                shouldInjectWinUp = true;
                 DebugLogger.LogState("ActivateGhostMode - set active", _isLWinDown, _ghostModeActive, ShouldSuppressWinKey, _timerFired);
+            }
+
+            // Inject synthetic Esc + Win UP to release Win key from system's perspective
+            // (system saw Win DOWN before Ghost Mode activated; we must tell it Win was released)
+            // This must be done OUTSIDE the lock to avoid holding lock during P/Invoke
+            if (shouldInjectWinUp)
+            {
+                DebugLogger.Log("ActivateGhostMode: Injecting synthetic Esc + Win UP to prevent Start menu");
+                SendEscWinReleaseToPreventStartMenu();
             }
 
             try
