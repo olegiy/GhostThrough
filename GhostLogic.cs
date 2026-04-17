@@ -699,34 +699,38 @@ namespace PeekThrough
 
         protected virtual void Dispose(bool disposing)
         {
+            Timer timerToDispose = null;
+            Timer suppressTimerToDispose = null;
+            Form formToDispose = null;
+
             lock (_lockObject)
             {
                 if (_disposed)
                     return;
                 _disposed = true;
+
+                timerToDispose = _timer;
+                _timer = null;
+                suppressTimerToDispose = _suppressWinTimer;
+                _suppressWinTimer = null;
+                formToDispose = _tooltipForm;
+                _tooltipForm = null;
             }
 
             if (disposing)
             {
-                Timer timerToDispose = null;
-                Timer suppressTimerToDispose = null;
-                Form formToDispose = null;
-
-                lock (_lockObject)
+                if (timerToDispose != null)
                 {
-                    timerToDispose = _timer;
-                    _timer = null;
-                    suppressTimerToDispose = _suppressWinTimer;
-                    _suppressWinTimer = null;
-                    formToDispose = _tooltipForm;
-                    _tooltipForm = null;
+                    timerToDispose.Stop();
+                    timerToDispose.Dispose();
                 }
-
-                if (timerToDispose != null) timerToDispose.Stop();
-                if (timerToDispose != null) timerToDispose.Dispose();
-                if (suppressTimerToDispose != null) suppressTimerToDispose.Stop();
-                if (suppressTimerToDispose != null) suppressTimerToDispose.Dispose();
-                if (formToDispose != null) formToDispose.Dispose();
+                if (suppressTimerToDispose != null)
+                {
+                    suppressTimerToDispose.Stop();
+                    suppressTimerToDispose.Dispose();
+                }
+                if (formToDispose != null)
+                    formToDispose.Dispose();
 
                 RestoreAllWindows();
             }

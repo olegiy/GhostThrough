@@ -156,17 +156,17 @@ namespace PeekThrough
                         {
                             // Сбрасываем флаг при новом нажатии выбранной кнопки мыши
                             _mouseButtonPressedAfterSelected = false;
-                            
+
                             // Если нажата другая кнопка мыши до выбранной - не активируем Ghost Mode
                             if (_pressedMouseButtons.Count > 0)
                             {
                                 DebugLogger.Log(string.Format("HookCallback: Other mouse buttons pressed before selected ({0}), blocking Ghost Mode", _pressedMouseButtons.Count));
-                                Action otherMouseButtonHandler = OnOtherMouseButtonPressedBeforeSelected;
-                                if (otherMouseButtonHandler != null)
+                                var handlerBlocked = OnOtherMouseButtonPressedBeforeSelected;
+                                if (handlerBlocked != null)
                                 {
                                     _syncContext.Post(state =>
                                     {
-                                        try { otherMouseButtonHandler(); }
+                                        try { handlerBlocked(); }
                                         catch (Exception ex) { DebugLogger.Log(string.Format("OtherMouseButton handler error: {0}", ex.Message)); }
                                     }, null);
                                 }
@@ -184,12 +184,12 @@ namespace PeekThrough
                             {
                                 DebugLogger.Log("HookCallback: Selected mouse button released but other button was pressed after - blocking Ghost Mode");
                                 // Блокируем активацию Ghost Mode
-                                Action otherMouseButtonHandler = OnOtherMouseButtonPressedBeforeSelected;
-                                if (otherMouseButtonHandler != null)
+                                var handlerBlocked = OnOtherMouseButtonPressedBeforeSelected;
+                                if (handlerBlocked != null)
                                 {
                                     _syncContext.Post(state =>
                                     {
-                                        try { otherMouseButtonHandler(); }
+                                        try { handlerBlocked(); }
                                         catch (Exception ex) { DebugLogger.Log(string.Format("OtherMouseButton handler error on selected button release: {0}", ex.Message)); }
                                     }, null);
                                 }
@@ -199,25 +199,19 @@ namespace PeekThrough
                                 _isMouseButtonDown = false;
                                 handler = OnSelectedMouseUp;
                             }
-                            
+
                             // Сбрасываем флаг после обработки
                             _mouseButtonPressedAfterSelected = false;
                         }
                     }
 
-                    // Вызов обработчика с обработкой исключений (вне lock)
+                    // Вызов обработчика с обработкой исключений через syncContext
                     if (handler != null)
                     {
                         _syncContext.Post(state =>
                         {
-                            try
-                            {
-                                handler();
-                            }
-                            catch (Exception ex)
-                            {
-                                DebugLogger.Log(string.Format("Mouse hook handler error: {0}", ex.Message));
-                            }
+                            try { handler(); }
+                            catch (Exception ex) { DebugLogger.Log(string.Format("Mouse hook handler error: {0}", ex.Message)); }
                         }, null);
                     }
                 }

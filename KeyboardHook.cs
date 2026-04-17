@@ -75,10 +75,10 @@ namespace PeekThrough
         {
             if (nCode >= 0)
             {
-                int vkCode = Marshal.ReadInt32(lParam);
-                
-                // Проверяем, является ли событие инжектированным (от SendInput)
-                int flags = Marshal.ReadInt32(lParam, 8); // KBDLLHOOKSTRUCT.flags — 3-е поле (смещение 8 байт)
+                // Используем PtrToStructure для безопасного доступа к полям структуры
+                var hookStruct = (NativeMethods.KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(NativeMethods.KBDLLHOOKSTRUCT));
+                int vkCode = hookStruct.vkCode;
+                int flags = hookStruct.flags;
                 bool isInjected = (flags & 0x10) != 0; // LLKHF_INJECTED = 0x10
                 
                 // Получаем текущую клавишу активации
@@ -104,17 +104,17 @@ namespace PeekThrough
                     {
                         // Сбрасываем флаг при новом нажатии клавиши активации
                         _keyPressedAfterActivation = false;
-                        
+
                         // Если нажата другая клавиша до клавиши активации - не активируем Ghost Mode
                         if (_pressedKeys.Count > 0)
                         {
                             DebugLogger.Log(string.Format("HookCallback: Other keys pressed before activation key ({0}), blocking Ghost Mode", _pressedKeys.Count));
-                            Action otherKeyHandler = OnOtherKeyPressedBeforeActivation;
-                            if (otherKeyHandler != null)
+                            var handlerBlocked = OnOtherKeyPressedBeforeActivation;
+                            if (handlerBlocked != null)
                             {
                                 _syncContext.Post(state =>
                                 {
-                                    try { otherKeyHandler(); }
+                                    try { handlerBlocked(); }
                                     catch (Exception ex) { DebugLogger.Log(string.Format("OtherKey handler error: {0}", ex.Message)); }
                                 }, null);
                             }
@@ -131,12 +131,12 @@ namespace PeekThrough
                         {
                             DebugLogger.Log("HookCallback: Activation key released but key was pressed after - blocking Ghost Mode");
                             // Блокируем активацию Ghost Mode
-                            Action otherKeyHandler = OnOtherKeyPressedBeforeActivation;
-                            if (otherKeyHandler != null)
+                            var handlerBlocked = OnOtherKeyPressedBeforeActivation;
+                            if (handlerBlocked != null)
                             {
                                 _syncContext.Post(state =>
                                 {
-                                    try { otherKeyHandler(); }
+                                    try { handlerBlocked(); }
                                     catch (Exception ex) { DebugLogger.Log(string.Format("OtherKey handler error on activation key release: {0}", ex.Message)); }
                                 }, null);
                             }
@@ -145,24 +145,18 @@ namespace PeekThrough
                         {
                             handler = OnActivationKeyUp;
                         }
-                        
+
                         // Сбрасываем флаг после обработки
                         _keyPressedAfterActivation = false;
                     }
 
-                    // Вызов обработчика с обработкой исключений
+                    // Вызов обработчика с обработкой исключений через syncContext
                     if (handler != null)
                     {
                         _syncContext.Post(state =>
                         {
-                            try
-                            {
-                                handler();
-                            }
-                            catch (Exception ex)
-                            {
-                                DebugLogger.Log(string.Format("Hook handler error: {0}", ex.Message));
-                            }
+                            try { handler(); }
+                            catch (Exception ex) { DebugLogger.Log(string.Format("Hook handler error: {0}", ex.Message)); }
                         }, null);
                     }
 
