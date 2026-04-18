@@ -58,16 +58,12 @@ $RECYCLE.BIN/
 *.bak
 
 # --- AI Agent Configuration (Kilo Code) ---
-.agent/mcp.json
-.agent/worktrees/
-.agent/skills/
-.agent/commands/
-.kilocode/mcp.json
-.kilocode/commands/
-.kilocode/worktrees/
-.kilocode/skills/
-.shared/
-ui-ux-pro-max/
+.kilo/
+.kilocode/
+.kilo/mcp.json
+.kilo/worktrees/
+.kilo/skills/
+.kilo/commands/
 
 # --- Project Plans ---
 plans/

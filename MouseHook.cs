@@ -12,7 +12,7 @@ namespace PeekThrough
         private IntPtr _hookID = IntPtr.Zero;
         private SynchronizationContext _syncContext;
         private bool _disposed = false;
-        private GhostLogic _ghostLogic;
+        private GhostController _ghostController;
         private readonly object _lockObject = new object();
         
         // Отслеживание нажатых кнопок мыши
@@ -33,9 +33,9 @@ namespace PeekThrough
         // Событие для уведомления о нажатии другой кнопки мыши перед выбранной
         public event Action OnOtherMouseButtonPressedBeforeSelected;
 
-        public MouseHook(GhostLogic ghostLogic, int selectedMouseButton = NativeMethods.VK_MBUTTON)
+        public MouseHook(GhostController ghostController, int selectedMouseButton = NativeMethods.VK_MBUTTON)
         {
-            _ghostLogic = ghostLogic;
+            _ghostController = ghostController;
             _selectedMouseButton = selectedMouseButton;
             _proc = HookCallback;
             _syncContext = SynchronizationContext.Current ?? new SynchronizationContext();
@@ -226,7 +226,7 @@ namespace PeekThrough
                             DebugLogger.Log(string.Format("HookCallback: Other mouse button DOWN, button={0}, total pressed: {1}", mouseButton, _pressedMouseButtons.Count));
 
                             // Если выбранная кнопка мыши сейчас нажата, отмечаем что другая кнопка нажата ПОСЛЕ неё
-                            if (_ghostLogic != null && _isMouseButtonDown)
+                            if (_ghostController != null && _isMouseButtonDown)
                             {
                                 _mouseButtonPressedAfterSelected = true;
                                 DebugLogger.Log("HookCallback: Other mouse button pressed AFTER selected - will block Ghost Mode");
@@ -239,23 +239,8 @@ namespace PeekThrough
                         }
                     }
 
-                    // Если нажата любая другая кнопка мыши и Ghost Mode активен,
-                    // отключаем Ghost Mode и пропускаем кнопку для стандартной обработки
-                    if (isButtonDown && _ghostLogic != null && _ghostLogic.IsGhostModeActive)
-                    {
-                        DebugLogger.Log("HookCallback: Other mouse button pressed while Ghost Mode active, deactivating");
-                        _syncContext.Post(state =>
-                        {
-                            try
-                            {
-                                _ghostLogic.DeactivateGhostMode();
-                            }
-                            catch (Exception ex)
-                            {
-                                DebugLogger.Log(string.Format("DeactivateGhostMode error: {0}", ex.Message));
-                            }
-                        }, null);
-                    }
+                    // Mouse clicks no longer deactivate Ghost Mode (toggle mode)
+                    // User can interact with windows behind the ghost window normally
                 }
             }
             return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);
