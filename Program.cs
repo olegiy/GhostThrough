@@ -82,6 +82,7 @@ namespace PeekThrough
                     : ActivationInputType.Keyboard;
 
                 _controller = new GhostController(activationType, profileManager);
+                _settings.Activation.KeyCode = GhostController.NormalizeActivationKeyCode(_settings.Activation.KeyCode);
                 _controller.ActivationKeyCode = _settings.Activation.KeyCode;
 
                 // Create hooks
@@ -166,6 +167,7 @@ namespace PeekThrough
             // Create new controller with new activation type
             var profileManager = CreateProfileManagerFromSettings();
             _controller = new GhostController(type, profileManager);
+            _settings.Activation.KeyCode = GhostController.NormalizeActivationKeyCode(_settings.Activation.KeyCode);
             _controller.ActivationKeyCode = _settings.Activation.KeyCode;
 
             // Recreate hooks
@@ -199,8 +201,9 @@ namespace PeekThrough
                 ? ActivationInputType.Mouse
                 : ActivationInputType.Keyboard;
 
+            int normalizedKeyCode = GhostController.NormalizeActivationKeyCode(vkCode);
             _controller = new GhostController(activationType, profileManager);
-            _controller.ActivationKeyCode = vkCode;
+            _controller.ActivationKeyCode = normalizedKeyCode;
 
             if (_keyboardHook != null)
                 _keyboardHook.Dispose();
@@ -208,7 +211,7 @@ namespace PeekThrough
 
             SubscribeHookEvents();
 
-            _settings.Activation.KeyCode = vkCode;
+            _settings.Activation.KeyCode = normalizedKeyCode;
             _settingsManager.SaveSettings(_settings);
         }
 
@@ -261,9 +264,6 @@ namespace PeekThrough
             int[] availableKeys = new int[]
             {
                 NativeMethods.VK_LWIN, NativeMethods.VK_RWIN,
-                NativeMethods.VK_LCONTROL, NativeMethods.VK_RCONTROL,
-                NativeMethods.VK_LMENU, NativeMethods.VK_RMENU,
-                NativeMethods.VK_LSHIFT, NativeMethods.VK_RSHIFT,
                 NativeMethods.VK_CAPITAL, NativeMethods.VK_TAB,
                 NativeMethods.VK_SPACE, NativeMethods.VK_ESCAPE,
                 NativeMethods.VK_OEM_3,

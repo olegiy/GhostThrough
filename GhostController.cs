@@ -27,6 +27,7 @@ namespace PeekThrough
 
         // Current target window (under cursor when activated)
         private IntPtr _currentTargetHwnd = IntPtr.Zero;
+        private int _activationKeyCode;
 
         // Disposable tracking
         private bool _disposed = false;
@@ -72,7 +73,11 @@ namespace PeekThrough
             get { return _activationState.IsMouseButtonPressed; }
         }
 
-        public int ActivationKeyCode { get; set; }
+        public int ActivationKeyCode
+        {
+            get { return _activationKeyCode; }
+            set { _activationKeyCode = NormalizeActivationKeyCode(value); }
+        }
 
         public ActivationInputType CurrentActivationType
         {
@@ -189,6 +194,23 @@ namespace PeekThrough
         public bool ProcessHotkey(int vkCode, bool isDown, bool ctrl, bool shift, bool alt)
         {
             return _hotkeyManager.ProcessKey(vkCode, isDown, ctrl, shift, alt);
+        }
+
+        public static int NormalizeActivationKeyCode(int vkCode)
+        {
+            return IsModifierKey(vkCode) ? NativeMethods.VK_LWIN : vkCode;
+        }
+
+        private static bool IsModifierKey(int vkCode)
+        {
+            return vkCode == NativeMethods.VK_CONTROL ||
+                   vkCode == NativeMethods.VK_LCONTROL ||
+                   vkCode == NativeMethods.VK_RCONTROL ||
+                   vkCode == NativeMethods.VK_SHIFT ||
+                   vkCode == NativeMethods.VK_LSHIFT ||
+                   vkCode == NativeMethods.VK_RSHIFT ||
+                   vkCode == NativeMethods.VK_LMENU ||
+                   vkCode == NativeMethods.VK_RMENU;
         }
 
         // Core Ghost Mode activation

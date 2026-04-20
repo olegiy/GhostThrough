@@ -108,11 +108,11 @@ namespace PeekThrough
 
                 if (isActivationKey)
                 {
-                    return ProcessActivationKey(wParam, vkCode);
+                    return ProcessActivationKey(nCode, wParam, lParam, vkCode);
                 }
                 else
                 {
-                    return ProcessOtherKey(wParam, vkCode);
+                    return ProcessOtherKey(nCode, wParam, lParam, vkCode);
                 }
             }
             return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);
@@ -140,7 +140,7 @@ namespace PeekThrough
             return _ghostController.ProcessHotkey(vkCode, isKeyDown, _ctrlPressed, _shiftPressed, _altPressed);
         }
 
-        private IntPtr ProcessActivationKey(IntPtr wParam, int vkCode)
+        private IntPtr ProcessActivationKey(int nCode, IntPtr wParam, IntPtr lParam, int vkCode)
         {
             DebugLogger.Log(string.Format("HookCallback: Activation key detected (vkCode={0}), wParam={1}", vkCode, wParam));
 
@@ -225,10 +225,10 @@ namespace PeekThrough
                 }, null);
             }
 
-            return NativeMethods.CallNextHookEx(_hookID, 0, wParam, IntPtr.Zero);
+            return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
 
-        private IntPtr ProcessOtherKey(IntPtr wParam, int vkCode)
+        private IntPtr ProcessOtherKey(int nCode, IntPtr wParam, IntPtr lParam, int vkCode)
         {
             if (wParam == (IntPtr)NativeMethods.WM_KEYDOWN)
             {
@@ -258,7 +258,7 @@ namespace PeekThrough
                 DebugLogger.Log(string.Format("HookCallback: Other key UP, vkCode={0}, remaining: {1}", vkCode, _pressedKeys.Count));
             }
 
-            return NativeMethods.CallNextHookEx(_hookID, 0, wParam, IntPtr.Zero);
+            return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
     }
 }

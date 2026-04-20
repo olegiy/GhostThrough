@@ -37,6 +37,7 @@ namespace PeekThrough.Tests
             try
             {
                 ShouldTreatKeyAsPressedImmediatelyAfterActivationKeyDown();
+                ShouldRejectModifierActivationKeysToAvoidShortcutBlocking();
                 Console.WriteLine("PASS");
                 return 0;
             }
@@ -58,8 +59,8 @@ namespace PeekThrough.Tests
                 hook.OnActivationKeyDown += controller.OnKeyDown;
                 hook.OnActivationKeyUp += controller.OnKeyUp;
 
-                InvokePrivateMethod(hook, "ProcessActivationKey", (IntPtr)NativeMethods.WM_KEYDOWN, NativeMethods.VK_LWIN);
-                InvokePrivateMethod(hook, "ProcessOtherKey", (IntPtr)NativeMethods.WM_KEYDOWN, 0x41);
+                InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYDOWN, IntPtr.Zero, NativeMethods.VK_LWIN);
+                InvokePrivateMethod(hook, "ProcessOtherKey", 0, (IntPtr)NativeMethods.WM_KEYDOWN, IntPtr.Zero, 0x41);
 
                 bool keyPressedAfterActivation = (bool)GetPrivateField(hook, "_keyPressedAfterActivation");
                 if (!keyPressedAfterActivation)
@@ -74,6 +75,26 @@ namespace PeekThrough.Tests
             {
                 controller.Dispose();
                 hook.Dispose();
+            }
+        }
+
+        private static void ShouldRejectModifierActivationKeysToAvoidShortcutBlocking()
+        {
+            var controller = new GhostController(ActivationInputType.Keyboard, new ProfileManager());
+
+            try
+            {
+                controller.ActivationKeyCode = NativeMethods.VK_LCONTROL;
+
+                if (controller.ActivationKeyCode != NativeMethods.VK_LWIN)
+                {
+                    throw new InvalidOperationException(
+                        "FAIL: GhostController accepted Ctrl as activation key. Modifier activation keys must be rejected to avoid blocking Ctrl shortcuts in other apps.");
+                }
+            }
+            finally
+            {
+                controller.Dispose();
             }
         }
 
