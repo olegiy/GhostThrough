@@ -1,0 +1,120 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Runtime.Serialization;
+using System.Threading;
+
+namespace PeekThrough.Tests
+{
+    internal static class KeyboardHookRegressionTest
+    {
+        private sealed class QueuedSynchronizationContext : SynchronizationContext
+        {
+            private readonly Queue<SendOrPostCallback> _callbacks = new Queue<SendOrPostCallback>();
+            private readonly Queue<object> _states = new Queue<object>();
+
+            public override void Post(SendOrPostCallback d, object state)
+            {
+                _callbacks.Enqueue(d);
+                _states.Enqueue(state);
+            }
+
+            public void Flush()
+            {
+                while (_callbacks.Count > 0)
+                {
+                    SendOrPostCallback callback = _callbacks.Dequeue();
+                    object state = _states.Dequeue();
+                    callback(state);
+                }
+            }
+        }
+
+        private static int Main()
+        {
+            DebugLogger.ClearLog();
+
+            try
+            {
+                ShouldTreatKeyAsPressedImmediatelyAfterActivationKeyDown();
+                Console.WriteLine("PASS");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                return 1;
+            }
+        }
+
+        private static void ShouldTreatKeyAsPressedImmediatelyAfterActivationKeyDown()
+        {
+            var controller = new GhostController(ActivationInputType.Keyboard, new ProfileManager());
+            var syncContext = new QueuedSynchronizationContext();
+            var hook = CreateKeyboardHookForTest(controller, syncContext);
+
+            try
+            {
+                hook.OnActivationKeyDown += controller.OnKeyDown;
+                hook.OnActivationKeyUp += controller.OnKeyUp;
+
+                InvokePrivateMethod(hook, "ProcessActivationKey", (IntPtr)NativeMethods.WM_KEYDOWN, NativeMethods.VK_LWIN);
+                InvokePrivateMethod(hook, "ProcessOtherKey", (IntPtr)NativeMethods.WM_KEYDOWN, 0x41);
+
+                bool keyPressedAfterActivation = (bool)GetPrivateField(hook, "_keyPressedAfterActivation");
+                if (!keyPressedAfterActivation)
+                {
+                    throw new InvalidOperationException(
+                        "FAIL: KeyboardHook did not mark a key as pressed after activation key down while the posted activation handler had not run yet.");
+                }
+
+                syncContext.Flush();
+            }
+            finally
+            {
+                controller.Dispose();
+                hook.Dispose();
+            }
+        }
+
+        private static KeyboardHook CreateKeyboardHookForTest(GhostController controller, SynchronizationContext syncContext)
+        {
+            var hook = (KeyboardHook)FormatterServices.GetUninitializedObject(typeof(KeyboardHook));
+
+            SetPrivateField(hook, "_syncContext", syncContext);
+            SetPrivateField(hook, "_ghostController", controller);
+            SetPrivateField(hook, "_pressedKeys", new HashSet<int>());
+            SetPrivateField(hook, "_hookID", IntPtr.Zero);
+            SetPrivateField(hook, "_disposed", false);
+
+            return hook;
+        }
+
+        private static void InvokePrivateMethod(object target, string methodName, params object[] args)
+        {
+            MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (method == null)
+                throw new MissingMethodException(target.GetType().FullName, methodName);
+
+            method.Invoke(target, args);
+        }
+
+        private static object GetPrivateField(object target, string fieldName)
+        {
+            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field == null)
+                throw new MissingFieldException(target.GetType().FullName, fieldName);
+
+            return field.GetValue(target);
+        }
+
+        private static void SetPrivateField(object target, string fieldName, object value)
+        {
+            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field == null)
+                throw new MissingFieldException(target.GetType().FullName, fieldName);
+
+            field.SetValue(target, value);
+        }
+    }
+}

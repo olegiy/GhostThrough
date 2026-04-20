@@ -23,6 +23,7 @@ namespace PeekThrough
         // Other key tracking
         private HashSet<int> _pressedKeys = new HashSet<int>();
         private bool _keyPressedAfterActivation = false;
+        private bool _isActivationKeyDown = false;
 
         public event Action OnActivationKeyDown;
         public event Action OnActivationKeyUp;
@@ -133,7 +134,7 @@ namespace PeekThrough
                 return false;
 
             // Don't process hotkeys if we're in the middle of activation key handling
-            if (_ghostController.IsLWinPressed)
+            if (_isActivationKeyDown)
                 return false;
 
             return _ghostController.ProcessHotkey(vkCode, isKeyDown, _ctrlPressed, _shiftPressed, _altPressed);
@@ -147,6 +148,7 @@ namespace PeekThrough
 
             if (wParam == (IntPtr)NativeMethods.WM_KEYDOWN)
             {
+                _isActivationKeyDown = true;
                 _keyPressedAfterActivation = false;
 
                 if (_pressedKeys.Count > 0)
@@ -169,6 +171,7 @@ namespace PeekThrough
             }
             else if (wParam == (IntPtr)NativeMethods.WM_KEYUP)
             {
+                _isActivationKeyDown = false;
                 bool keyPressedAfterActivation = _keyPressedAfterActivation;
 
                 if (keyPressedAfterActivation)
@@ -232,7 +235,7 @@ namespace PeekThrough
                 _pressedKeys.Add(vkCode);
                 DebugLogger.Log(string.Format("HookCallback: Other key DOWN, vkCode={0}, total: {1}", vkCode, _pressedKeys.Count));
 
-                if (_ghostController != null && _ghostController.IsLWinPressed)
+                if (_isActivationKeyDown)
                 {
                     _keyPressedAfterActivation = true;
                     DebugLogger.Log("HookCallback: Key pressed AFTER activation key");
