@@ -237,6 +237,13 @@ namespace PeekThrough
                     }
                     else
                     {
+                        if (_activationType == ActivationInputType.Keyboard)
+                        {
+                            _suppressActivationKey = true;
+                            _suppressTimer.Stop();
+                            _suppressTimer.Start();
+                        }
+
                         DebugLogger.Log("ActivationStateManager: Activation rejected by controller");
                     }
                 }
