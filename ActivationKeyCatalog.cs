@@ -46,6 +46,17 @@ namespace GhostThrough
             get { return Keys; }
         }
 
+        public static bool IsSupportedKey(int vkCode)
+        {
+            for (int i = 0; i < Keys.Length; i++)
+            {
+                if (Keys[i] == vkCode)
+                    return true;
+            }
+
+            return false;
+        }
+
         public static string GetDisplayName(int vkCode)
         {
             string name;

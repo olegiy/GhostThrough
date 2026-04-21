@@ -53,7 +53,8 @@ namespace GhostThrough
 
                 // Parse v2 JSON format
                 var settings = _serializer.Deserialize<Settings>(content) ?? CreateDefaultSettings();
-                bool settingsChanged = NormalizeProfiles(settings);
+                bool settingsChanged = NormalizeActivationSettings(settings);
+                settingsChanged = NormalizeProfiles(settings) || settingsChanged;
                 DebugLogger.Log(string.Format("SettingsManager: Loaded v2 settings, active profile: {0}", settings.Profiles.ActiveId));
                 if (settingsChanged)
                 {
@@ -141,6 +142,48 @@ namespace GhostThrough
             return new Settings();
         }
 
+        private bool NormalizeActivationSettings(Settings settings)
+        {
+            if (settings == null)
+                return false;
+
+            bool changed = false;
+
+            if (settings.Activation == null)
+            {
+                settings.Activation = new ActivationSettings();
+                return true;
+            }
+
+            string normalizedType = settings.Activation.Type.ToActivationInputType().ToSettingsValue();
+            if (!string.Equals(settings.Activation.Type, normalizedType, StringComparison.OrdinalIgnoreCase))
+            {
+                settings.Activation.Type = normalizedType;
+                changed = true;
+            }
+
+            int normalizedKeyCode = GhostController.NormalizeActivationKeyCode(settings.Activation.KeyCode);
+            if (!ActivationKeyCatalog.IsSupportedKey(normalizedKeyCode))
+            {
+                normalizedKeyCode = NativeMethods.VK_LWIN;
+            }
+
+            if (settings.Activation.KeyCode != normalizedKeyCode)
+            {
+                settings.Activation.KeyCode = normalizedKeyCode;
+                changed = true;
+            }
+
+            int normalizedMouseButton = NormalizeMouseButton(settings.Activation.MouseButton);
+            if (settings.Activation.MouseButton != normalizedMouseButton)
+            {
+                settings.Activation.MouseButton = normalizedMouseButton;
+                changed = true;
+            }
+
+            return changed;
+        }
+
         private bool NormalizeProfiles(Settings settings)
         {
             if (settings == null)
@@ -185,6 +228,20 @@ namespace GhostThrough
             }
 
             return false;
+        }
+
+        private static int NormalizeMouseButton(int mouseButton)
+        {
+            switch (mouseButton)
+            {
+                case NativeMethods.VK_MBUTTON:
+                case NativeMethods.VK_RBUTTON:
+                case NativeMethods.VK_XBUTTON1:
+                case NativeMethods.VK_XBUTTON2:
+                    return mouseButton;
+                default:
+                    return NativeMethods.VK_MBUTTON;
+            }
         }
     }
 }

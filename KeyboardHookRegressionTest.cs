@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Threading;
+using GhostThrough.Models;
 
 namespace GhostThrough.Tests
 {
@@ -42,6 +44,7 @@ namespace GhostThrough.Tests
                 ShouldExposeControllerThroughActivationHost();
                 ShouldOnlyDeactivateGhostModeOncePerRequest();
                 ShouldClearActivationStateEvenWithoutTrackedGhostWindow();
+                ShouldNormalizeInvalidActivationSettingsOnLoad();
                 ShouldTreatKeyAsPressedImmediatelyAfterActivationKeyDown();
                 ShouldRejectModifierActivationKeysToAvoidShortcutBlocking();
                 ShouldFlushQueuedLogEntries();
@@ -138,6 +141,53 @@ namespace GhostThrough.Tests
             finally
             {
                 controller.Dispose();
+            }
+        }
+
+        private static void ShouldNormalizeInvalidActivationSettingsOnLoad()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), "GhostThroughSettingsTest_" + Guid.NewGuid().ToString("N"));
+            string settingsPath = Path.Combine(tempDir, "settings.json");
+
+            Directory.CreateDirectory(tempDir);
+
+            try
+            {
+                var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+                var settings = new Settings();
+                settings.Activation.Type = "invalid-type";
+                settings.Activation.KeyCode = NativeMethods.VK_LCONTROL;
+                settings.Activation.MouseButton = NativeMethods.VK_LBUTTON;
+                File.WriteAllText(settingsPath, serializer.Serialize(settings));
+
+                var manager = new SettingsManager(settingsPath);
+                Settings loaded = manager.LoadSettings();
+
+                if (loaded.Activation.Type != "keyboard")
+                {
+                    throw new InvalidOperationException("FAIL: SettingsManager did not normalize invalid activation type to keyboard.");
+                }
+
+                if (loaded.Activation.KeyCode != NativeMethods.VK_LWIN)
+                {
+                    throw new InvalidOperationException("FAIL: SettingsManager did not normalize invalid activation key to Left Win.");
+                }
+
+                if (loaded.Activation.MouseButton != NativeMethods.VK_MBUTTON)
+                {
+                    throw new InvalidOperationException("FAIL: SettingsManager did not normalize invalid mouse button to Middle Button.");
+                }
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(tempDir))
+                        Directory.Delete(tempDir, true);
+                }
+                catch
+                {
+                }
             }
         }
 
