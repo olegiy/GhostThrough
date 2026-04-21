@@ -45,6 +45,9 @@ namespace GhostThrough.Tests
                 ShouldOnlyDeactivateGhostModeOncePerRequest();
                 ShouldClearActivationStateEvenWithoutTrackedGhostWindow();
                 ShouldNormalizeInvalidActivationSettingsOnLoad();
+                ShouldSanitizeInvalidProfilesOnLoad();
+                ShouldNormalizeInvalidActivationSettingsDuringV1Migration();
+                ShouldNotNotifyWhenSettingSameActiveProfile();
                 ShouldTreatKeyAsPressedImmediatelyAfterActivationKeyDown();
                 ShouldRejectModifierActivationKeysToAvoidShortcutBlocking();
                 ShouldFlushQueuedLogEntries();
@@ -176,6 +179,135 @@ namespace GhostThrough.Tests
                 if (loaded.Activation.MouseButton != NativeMethods.VK_MBUTTON)
                 {
                     throw new InvalidOperationException("FAIL: SettingsManager did not normalize invalid mouse button to Middle Button.");
+                }
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(tempDir))
+                        Directory.Delete(tempDir, true);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private static void ShouldNotNotifyWhenSettingSameActiveProfile()
+        {
+            var manager = new ProfileManager();
+            int notifications = 0;
+
+            manager.OnProfileChanged += profile => notifications++;
+
+            string activeId = manager.ActiveProfile.Id;
+            manager.SetActiveProfile(activeId);
+            manager.SetActiveProfileByIndex(0);
+
+            if (notifications != 0)
+            {
+                throw new InvalidOperationException(
+                    string.Format("FAIL: ProfileManager raised {0} redundant change notifications for the already active profile.", notifications));
+            }
+        }
+
+        private static void ShouldSanitizeInvalidProfilesOnLoad()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), "GhostThroughProfileSettingsTest_" + Guid.NewGuid().ToString("N"));
+            string settingsPath = Path.Combine(tempDir, "settings.json");
+
+            Directory.CreateDirectory(tempDir);
+
+            try
+            {
+                var serializer = new System.Web.Script.Serialization.JavaScriptSerializer();
+                var settings = new Settings();
+                settings.Profiles.List = new List<ProfileData>
+                {
+                    null,
+                    new ProfileData { Id = null, Name = null, Opacity = 128 },
+                    new ProfileData { Id = "dup", Name = "A", Opacity = 26 },
+                    new ProfileData { Id = "dup", Name = "B", Opacity = 51 }
+                };
+                settings.Profiles.ActiveId = "missing";
+                File.WriteAllText(settingsPath, serializer.Serialize(settings));
+
+                var manager = new SettingsManager(settingsPath);
+                Settings loaded = manager.LoadSettings();
+
+                if (loaded.Profiles.List == null || loaded.Profiles.List.Count != 3)
+                {
+                    throw new InvalidOperationException("FAIL: SettingsManager did not sanitize the invalid profile list correctly.");
+                }
+
+                if (loaded.Profiles.List.Any(p => p == null || string.IsNullOrWhiteSpace(p.Id) || string.IsNullOrWhiteSpace(p.Name)))
+                {
+                    throw new InvalidOperationException("FAIL: SettingsManager left invalid profile entries after sanitization.");
+                }
+
+                int uniqueIds = loaded.Profiles.List.Select(p => p.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+                if (uniqueIds != loaded.Profiles.List.Count)
+                {
+                    throw new InvalidOperationException("FAIL: SettingsManager did not make duplicate profile IDs unique.");
+                }
+
+                if (!loaded.Profiles.List.Any(p => p.Id == loaded.Profiles.ActiveId))
+                {
+                    throw new InvalidOperationException("FAIL: SettingsManager did not normalize ActiveId to an existing profile.");
+                }
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(tempDir))
+                        Directory.Delete(tempDir, true);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private static void ShouldNormalizeInvalidActivationSettingsDuringV1Migration()
+        {
+            string tempDir = Path.Combine(Path.GetTempPath(), "GhostThroughLegacySettingsTest_" + Guid.NewGuid().ToString("N"));
+            string settingsPath = Path.Combine(tempDir, "settings.json");
+
+            Directory.CreateDirectory(tempDir);
+
+            try
+            {
+                File.WriteAllText(
+                    settingsPath,
+                    string.Join(
+                        Environment.NewLine,
+                        "ActivationKeyCode:162",
+                        "ActivationType:9",
+                        "MouseButton:1"));
+
+                var manager = new SettingsManager(settingsPath);
+                Settings loaded = manager.LoadSettings();
+
+                if (loaded.Activation.Type != "keyboard")
+                {
+                    throw new InvalidOperationException("FAIL: V1 migration did not normalize invalid activation type to keyboard.");
+                }
+
+                if (loaded.Activation.KeyCode != NativeMethods.VK_LWIN)
+                {
+                    throw new InvalidOperationException("FAIL: V1 migration did not normalize invalid activation key to Left Win.");
+                }
+
+                if (loaded.Activation.MouseButton != NativeMethods.VK_MBUTTON)
+                {
+                    throw new InvalidOperationException("FAIL: V1 migration did not normalize invalid mouse button to Middle Button.");
+                }
+
+                if (!File.Exists(settingsPath + ".bak"))
+                {
+                    throw new InvalidOperationException("FAIL: V1 migration did not create a backup .bak file.");
                 }
             }
             finally

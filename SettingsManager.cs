@@ -40,6 +40,8 @@ namespace GhostThrough
                     DebugLogger.Log("SettingsManager: Detected v1 format, migrating...");
                     var v1 = ParseV1Format(content);
                     var v2 = ConvertToV2(v1);
+                    NormalizeActivationSettings(v2);
+                    NormalizeProfiles(v2);
 
                     // Backup old settings
                     string backupPath = _settingsPath + ".bak";
@@ -127,7 +129,7 @@ namespace GhostThrough
             string typeStr;
             int type;
             if (v1.TryGetValue("ActivationType", out typeStr) && int.TryParse(typeStr, out type))
-                settings.Activation.Type = (type == 0 ? ActivationInputType.Keyboard : ActivationInputType.Mouse).ToSettingsValue();
+                settings.Activation.Type = (type == 1 ? ActivationInputType.Mouse : ActivationInputType.Keyboard).ToSettingsValue();
 
             string mouseStr;
             int mouseButton;
@@ -189,6 +191,8 @@ namespace GhostThrough
             if (settings == null)
                 return false;
 
+            bool changed = false;
+
             if (settings.Profiles == null)
             {
                 settings.Profiles = new ProfileSettings();
@@ -196,6 +200,16 @@ namespace GhostThrough
             }
 
             if (settings.Profiles.List == null || settings.Profiles.List.Count == 0)
+            {
+                settings.Profiles.List = OpacityProfilePresets.CreateDefaultProfileDataList();
+                settings.Profiles.ActiveId = OpacityProfilePresets.DefaultActiveProfileId;
+                return true;
+            }
+
+            if (SanitizeProfileList(settings.Profiles.List))
+                changed = true;
+
+            if (settings.Profiles.List.Count == 0)
             {
                 settings.Profiles.List = OpacityProfilePresets.CreateDefaultProfileDataList();
                 settings.Profiles.ActiveId = OpacityProfilePresets.DefaultActiveProfileId;
@@ -224,10 +238,10 @@ namespace GhostThrough
             if (!settings.Profiles.List.Any(p => p.Id == settings.Profiles.ActiveId))
             {
                 settings.Profiles.ActiveId = settings.Profiles.List[0].Id;
-                return true;
+                changed = true;
             }
 
-            return false;
+            return changed;
         }
 
         private static int NormalizeMouseButton(int mouseButton)
@@ -242,6 +256,61 @@ namespace GhostThrough
                 default:
                     return NativeMethods.VK_MBUTTON;
             }
+        }
+
+        private static bool SanitizeProfileList(List<ProfileData> profiles)
+        {
+            bool changed = false;
+            var sanitized = new List<ProfileData>();
+            var usedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var profile in profiles)
+            {
+                if (profile == null)
+                {
+                    changed = true;
+                    continue;
+                }
+
+                string id = string.IsNullOrWhiteSpace(profile.Id)
+                    ? OpacityProfilePresets.GetProfileId(profile.Opacity)
+                    : profile.Id.Trim();
+                string name = string.IsNullOrWhiteSpace(profile.Name)
+                    ? OpacityProfilePresets.GetProfileName(profile.Opacity)
+                    : profile.Name.Trim();
+
+                if (!string.Equals(profile.Id, id, StringComparison.Ordinal) ||
+                    !string.Equals(profile.Name, name, StringComparison.Ordinal))
+                {
+                    changed = true;
+                }
+
+                string uniqueId = id;
+                int suffix = 2;
+                while (!usedIds.Add(uniqueId))
+                {
+                    uniqueId = string.Format("{0}_{1}", id, suffix);
+                    suffix++;
+                }
+
+                if (!string.Equals(uniqueId, id, StringComparison.Ordinal))
+                    changed = true;
+
+                sanitized.Add(new ProfileData
+                {
+                    Id = uniqueId,
+                    Name = name,
+                    Opacity = profile.Opacity
+                });
+            }
+
+            if (changed)
+            {
+                profiles.Clear();
+                profiles.AddRange(sanitized);
+            }
+
+            return changed;
         }
     }
 }

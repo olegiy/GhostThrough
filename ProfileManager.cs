@@ -65,7 +65,7 @@ namespace GhostThrough
         public void SetActiveProfile(string profileId)
         {
             int index = _profiles.FindIndex(p => p.Id == profileId);
-            if (index >= 0)
+            if (index >= 0 && index != _activeIndex)
             {
                 _activeIndex = index;
                 NotifyProfileChanged();
@@ -74,7 +74,7 @@ namespace GhostThrough
 
         public void SetActiveProfileByIndex(int index)
         {
-            if (index >= 0 && index < _profiles.Count)
+            if (index >= 0 && index < _profiles.Count && index != _activeIndex)
             {
                 _activeIndex = index;
                 NotifyProfileChanged();

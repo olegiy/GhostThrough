@@ -48,6 +48,16 @@ namespace GhostThrough
             return BuildProfileId(closestOpacity);
         }
 
+        public static string GetProfileId(byte opacity)
+        {
+            return BuildProfileId(opacity);
+        }
+
+        public static string GetProfileName(byte opacity)
+        {
+            return BuildProfileName(opacity);
+        }
+
         private static string BuildProfileId(byte opacity)
         {
             return string.Format("p{0}", GetOpacityPercent(opacity));
