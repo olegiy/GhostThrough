@@ -15,6 +15,10 @@ namespace GhostThrough
 
         private bool _shutdown;
 
+        private AppContext()
+        {
+        }
+
         public static AppContext Create(string settingsPath)
         {
             var settingsManager = new SettingsManager(settingsPath);
@@ -28,7 +32,7 @@ namespace GhostThrough
             var controller = new GhostController(activationType, profileManager);
             controller.ActivationKeyCode = GhostController.NormalizeActivationKeyCode(settings.Activation.KeyCode);
 
-            return new AppContext
+            var appContext = new AppContext
             {
                 Settings = settings,
                 SettingsManager = settingsManager,
@@ -37,6 +41,29 @@ namespace GhostThrough
                 KeyboardHook = new KeyboardHook(controller),
                 MouseHook = new MouseHook(controller, settings.Activation.MouseButton)
             };
+
+            appContext.WireEvents();
+            return appContext;
+        }
+
+        private void WireEvents()
+        {
+            if (ProfileManager != null)
+                ProfileManager.OnProfileChanged += OnProfileChanged;
+        }
+
+        private void UnwireEvents()
+        {
+            if (ProfileManager != null)
+                ProfileManager.OnProfileChanged -= OnProfileChanged;
+        }
+
+        private void OnProfileChanged(Profile profile)
+        {
+            if (_shutdown)
+                return;
+
+            Save();
         }
 
         public void Reconfigure(ActivationInputType activationType, int activationKeyCode, int mouseButton)
@@ -71,6 +98,7 @@ namespace GhostThrough
                 return;
 
             _shutdown = true;
+            UnwireEvents();
             Save();
 
             if (MouseHook != null)

@@ -38,6 +38,7 @@ namespace GhostThrough
         private void ShowActivationSettings()
         {
             var menu = new ContextMenuStrip();
+            menu.Closed += (s, e) => menu.Dispose();
             var activationType = _appContext.Settings.Activation.Type.ToActivationInputType();
 
             var keyboardItem = new ToolStripMenuItem("Keyboard");
@@ -80,6 +81,7 @@ namespace GhostThrough
         private void ShowKeySelectionMenu()
         {
             var menu = new ContextMenuStrip();
+            menu.Closed += (s, e) => menu.Dispose();
 
             foreach (int vkCode in ActivationKeyCatalog.AvailableKeys)
             {

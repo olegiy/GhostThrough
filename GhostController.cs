@@ -28,6 +28,7 @@ namespace GhostThrough
         // Current target window (under cursor when activated)
         private IntPtr _currentTargetHwnd = IntPtr.Zero;
         private int _activationKeyCode;
+        private bool _deactivationInProgress;
 
         // Disposable tracking
         private bool _disposed = false;
@@ -104,7 +105,7 @@ namespace GhostThrough
         private void OnGhostModeShouldDeactivate()
         {
             DebugLogger.Log("=== GhostController.OnGhostModeShouldDeactivate ===");
-            DeactivateGhostMode();
+            CompleteDeactivation(false);
         }
 
         private void OnProfileChanged(Profile profile)
@@ -187,18 +188,41 @@ namespace GhostThrough
 
         public void DeactivateGhostMode()
         {
+            CompleteDeactivation(true);
+        }
+
+        private void CompleteDeactivation(bool syncActivationState)
+        {
+            bool shouldSyncActivationState = syncActivationState && _activationState.IsGhostModeActive;
             bool hasActiveWindow = _currentTargetHwnd != IntPtr.Zero || _transparencyManager.GhostWindows.Count > 0;
-            if (!hasActiveWindow)
+            if (!hasActiveWindow && !shouldSyncActivationState)
                 return;
 
+            if (_deactivationInProgress)
+                return;
+
+            _deactivationInProgress = true;
             DebugLogger.Log("=== GhostController.DeactivateGhostMode ===");
 
-            _activationState.ForceDeactivate();
-            _transparencyManager.RestoreAllWindows();
-            _tooltipService.Hide();
-            NativeMethods.Beep(BEEP_FREQUENCY_DEACTIVATE, BEEP_DURATION_MS);
+            try
+            {
+                if (shouldSyncActivationState)
+                    _activationState.ForceDeactivate();
 
-            _currentTargetHwnd = IntPtr.Zero;
+                if (hasActiveWindow)
+                    _transparencyManager.RestoreAllWindows();
+
+                _tooltipService.Hide();
+
+                if (hasActiveWindow)
+                    NativeMethods.Beep(BEEP_FREQUENCY_DEACTIVATE, BEEP_DURATION_MS);
+
+                _currentTargetHwnd = IntPtr.Zero;
+            }
+            finally
+            {
+                _deactivationInProgress = false;
+            }
         }
 
         public bool ProcessHotkey(int vkCode, bool isDown, bool ctrl, bool shift, bool alt)

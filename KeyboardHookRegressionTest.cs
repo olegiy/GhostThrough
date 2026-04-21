@@ -40,6 +40,8 @@ namespace GhostThrough.Tests
                 ShouldConvertActivationTypeStrings();
                 ShouldExposeKnownActivationKeys();
                 ShouldExposeControllerThroughActivationHost();
+                ShouldOnlyDeactivateGhostModeOncePerRequest();
+                ShouldClearActivationStateEvenWithoutTrackedGhostWindow();
                 ShouldTreatKeyAsPressedImmediatelyAfterActivationKeyDown();
                 ShouldRejectModifierActivationKeysToAvoidShortcutBlocking();
                 ShouldFlushQueuedLogEntries();
@@ -80,6 +82,62 @@ namespace GhostThrough.Tests
             {
                 controller.Dispose();
                 hook.Dispose();
+            }
+        }
+
+        private static void ShouldOnlyDeactivateGhostModeOncePerRequest()
+        {
+            DebugLogger.ClearLog();
+
+            var controller = new GhostController(ActivationInputType.Keyboard, new ProfileManager());
+
+            try
+            {
+                object activationState = GetPrivateField(controller, "_activationState");
+                SetPrivateField(activationState, "_ghostModeActive", true);
+                SetPrivateField(controller, "_currentTargetHwnd", new IntPtr(1));
+
+                controller.DeactivateGhostMode();
+                DebugLogger.Flush();
+
+                string logPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ghostthrough_debug.log");
+                string content = System.IO.File.ReadAllText(logPath);
+                int occurrences = CountOccurrences(content, "=== GhostController.DeactivateGhostMode ===");
+
+                if (occurrences != 1)
+                {
+                    throw new InvalidOperationException(
+                        string.Format("FAIL: GhostController deactivation ran {0} times for a single deactivation request.", occurrences));
+                }
+            }
+            finally
+            {
+                controller.Dispose();
+            }
+        }
+
+        private static void ShouldClearActivationStateEvenWithoutTrackedGhostWindow()
+        {
+            var controller = new GhostController(ActivationInputType.Keyboard, new ProfileManager());
+
+            try
+            {
+                object activationState = GetPrivateField(controller, "_activationState");
+                SetPrivateField(activationState, "_ghostModeActive", true);
+                SetPrivateField(controller, "_currentTargetHwnd", IntPtr.Zero);
+
+                controller.DeactivateGhostMode();
+
+                bool ghostModeActive = (bool)GetPrivateField(activationState, "_ghostModeActive");
+                if (ghostModeActive)
+                {
+                    throw new InvalidOperationException(
+                        "FAIL: GhostController left activation state active when deactivation was requested without a tracked ghost window.");
+                }
+            }
+            finally
+            {
+                controller.Dispose();
             }
         }
 
@@ -204,6 +262,20 @@ namespace GhostThrough.Tests
                 throw new MissingFieldException(target.GetType().FullName, fieldName);
 
             field.SetValue(target, value);
+        }
+
+        private static int CountOccurrences(string text, string value)
+        {
+            int count = 0;
+            int index = 0;
+
+            while ((index = text.IndexOf(value, index, StringComparison.Ordinal)) >= 0)
+            {
+                count++;
+                index += value.Length;
+            }
+
+            return count;
         }
     }
 }
