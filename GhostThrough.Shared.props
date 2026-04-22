@@ -1,0 +1,31 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Windows.Forms" />
+
+    <Compile Include="ActivationKeyCatalog.cs" />
+    <Compile Include="ActivationStateManager.cs" />
+    <Compile Include="ActivationTypeExtensions.cs" />
+    <Compile Include="AppContext.cs" />
+    <Compile Include="DebugLogger.cs" />
+    <Compile Include="GhostController.cs" />
+    <Compile Include="HotkeyManager.cs" />
+    <Compile Include="IActivationHost.cs" />
+    <Compile Include="JsonFileSerializer.cs" />
+    <Compile Include="KeyboardHook.cs" />
+    <Compile Include="MouseHook.cs" />
+    <Compile Include="Models\GhostWindowState.cs" />
+    <Compile Include="Models\Profile.cs" />
+    <Compile Include="Models\Settings.cs" />
+    <Compile Include="NativeMethods.cs" />
+    <Compile Include="OpacityProfilePresets.cs" />
+    <Compile Include="ProfileManager.cs" />
+    <Compile Include="SettingsManager.cs" />
+    <Compile Include="TooltipService.cs" />
+    <Compile Include="TrayMenuController.cs" />
+    <Compile Include="WindowTransparencyManager.cs" />
+  </ItemGroup>
+</Project>

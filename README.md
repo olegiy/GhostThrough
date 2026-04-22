@@ -176,7 +176,7 @@ Notes:
 
 ## Build
 
-There is no `.csproj` or solution file in the repository. The supported build paths are `compile.bat` and `run-regression-test.bat`.
+The repository now includes MSBuild project files, and the supported build paths are `compile.bat` and `run-regression-test.bat`.
 
 ### Quick build
 
@@ -189,7 +189,7 @@ The build now writes to `bin\GhostThrough.exe`, which avoids conflicts with olde
 ### Manual build
 
 ```bat
-C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /target:winexe /out:bin\GhostThrough.exe /win32icon:resources\icons\icon.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Runtime.Serialization.dll Program.cs JsonFileSerializer.cs NativeMethods.cs KeyboardHook.cs MouseHook.cs GhostController.cs ActivationStateManager.cs WindowTransparencyManager.cs TooltipService.cs SettingsManager.cs ProfileManager.cs OpacityProfilePresets.cs HotkeyManager.cs DebugLogger.cs IActivationHost.cs ActivationKeyCatalog.cs ActivationTypeExtensions.cs AppContext.cs TrayMenuController.cs Models\Settings.cs Models\Profile.cs Models\GhostWindowState.cs
+dotnet msbuild GhostThrough.csproj /t:Build /p:Configuration=Release
 ```
 
 ## Regression Test
@@ -210,7 +210,8 @@ It currently verifies:
 Build and run it with:
 
 ```bat
-run-regression-test.bat
+dotnet msbuild KeyboardHookRegressionTest.csproj /t:Build /p:Configuration=Release
+bin\KeyboardHookRegressionTest.exe
 ```
 
 Expected result:
@@ -243,7 +244,7 @@ PASS
 
 - The app is Windows-only and depends on low-level global hooks plus Win32 style manipulation.
 - The repository currently tracks generated files such as `GhostThrough.exe`, `GhostThrough.pdb`, and `ghostthrough_debug.log`.
-- There is still no installer, updater, `.csproj`, or broad automated test suite.
+- There is still no installer, updater, or broad automated test suite.
 - The settings layer now uses `DataContractJsonSerializer`, which is more portable inside classic .NET Framework than the old `JavaScriptSerializer`, but the project is still not migrated to a modern SDK-style .NET setup.
 - No `LICENSE` file is currently tracked in the repository root.
 

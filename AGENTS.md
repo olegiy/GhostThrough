@@ -18,6 +18,8 @@ GhostThrough is a C# WinForms tray utility for Windows that makes the window und
 - **HotkeyManager.cs** — Hardcoded `Ctrl+Shift+Up/Down` profile cycling hotkeys
 - **SettingsManager.cs** — Loads/saves v2 JSON settings via `DataContractJsonSerializer` and migrates legacy line-based settings
 - **JsonFileSerializer.cs** — Shared JSON serialization helper for settings and regression tests
+- **GhostThrough.csproj** — Main MSBuild project for the tray application
+- **KeyboardHookRegressionTest.csproj** — Standalone regression-test MSBuild project
 - **ActivationKeyCatalog.cs** — Allowed activation-key list and display names used by the tray menu
 - **ActivationTypeExtensions.cs** — Conversion helpers between persisted setting values and runtime activation enums
 - **IActivationHost.cs** — Shared contract used by keyboard and mouse hooks
@@ -38,14 +40,15 @@ GhostThrough is a C# WinForms tray utility for Windows that makes the window und
 - Single-instance via named Mutex "GhostThroughApp"
 
 ## Build
-No `.csproj` file is present. Build with `compile.bat` or call the .NET Framework compiler directly:
+MSBuild project files are present. Build with `compile.bat` or call `dotnet msbuild` directly:
 ```bash
-C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /target:winexe /out:bin\GhostThrough.exe /win32icon:resources\icons\icon.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Runtime.Serialization.dll Program.cs JsonFileSerializer.cs NativeMethods.cs KeyboardHook.cs MouseHook.cs GhostController.cs ActivationStateManager.cs WindowTransparencyManager.cs TooltipService.cs SettingsManager.cs ProfileManager.cs OpacityProfilePresets.cs HotkeyManager.cs DebugLogger.cs IActivationHost.cs ActivationKeyCatalog.cs ActivationTypeExtensions.cs AppContext.cs TrayMenuController.cs Models\Settings.cs Models\Profile.cs Models\GhostWindowState.cs
+dotnet msbuild GhostThrough.csproj /t:Build /p:Configuration=Release
 ```
 
 Regression test build/run:
 ```bash
-run-regression-test.bat
+dotnet msbuild KeyboardHookRegressionTest.csproj /t:Build /p:Configuration=Release
+bin\KeyboardHookRegressionTest.exe
 ```
 
 ## Conventions

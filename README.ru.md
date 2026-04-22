@@ -176,7 +176,7 @@ GhostThrough поддерживает два режима активации:
 
 ## Сборка
 
-В репозитории нет `.csproj` или `.sln`. Поддерживаемые пути сборки — `compile.bat` и `run-regression-test.bat`.
+В репозитории теперь есть MSBuild-проекты, а поддерживаемые пути сборки — `compile.bat` и `run-regression-test.bat`.
 
 ### Быстрая сборка
 
@@ -189,7 +189,7 @@ compile.bat
 ### Ручная сборка
 
 ```bat
-C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /target:winexe /out:bin\GhostThrough.exe /win32icon:resources\icons\icon.ico /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Runtime.Serialization.dll Program.cs JsonFileSerializer.cs NativeMethods.cs KeyboardHook.cs MouseHook.cs GhostController.cs ActivationStateManager.cs WindowTransparencyManager.cs TooltipService.cs SettingsManager.cs ProfileManager.cs OpacityProfilePresets.cs HotkeyManager.cs DebugLogger.cs IActivationHost.cs ActivationKeyCatalog.cs ActivationTypeExtensions.cs AppContext.cs TrayMenuController.cs Models\Settings.cs Models\Profile.cs Models\GhostWindowState.cs
+dotnet msbuild GhostThrough.csproj /t:Build /p:Configuration=Release
 ```
 
 ## Регрессионный тест
@@ -210,7 +210,8 @@ C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /target:winexe /
 Сборка и запуск:
 
 ```bat
-run-regression-test.bat
+dotnet msbuild KeyboardHookRegressionTest.csproj /t:Build /p:Configuration=Release
+bin\KeyboardHookRegressionTest.exe
 ```
 
 Ожидаемый результат:
@@ -243,7 +244,7 @@ PASS
 
 - Приложение работает только на Windows и зависит от low-level global hooks и манипуляции Win32-стилями окон.
 - В репозитории сейчас отслеживаются сгенерированные файлы вроде `GhostThrough.exe`, `GhostThrough.pdb` и `ghostthrough_debug.log`.
-- По-прежнему нет installer, updater, `.csproj` и полноценного автоматизированного набора тестов.
+- По-прежнему нет installer, updater и полноценного автоматизированного набора тестов.
 - Слой настроек теперь использует `DataContractJsonSerializer`, что надёжнее внутри классического .NET Framework, чем прежний `JavaScriptSerializer`, но проект всё ещё не мигрирован на современный SDK-style .NET.
 - В корне репозитория пока нет файла `LICENSE`.
 

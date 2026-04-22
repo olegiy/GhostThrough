@@ -1,14 +1,15 @@
 @echo off
 echo Building GhostThrough...
 
-set "CSC=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-if not exist "%CSC%" (
-    echo ERROR: C# compiler not found at "%CSC%"
-    echo Please install .NET Framework 4.x Developer Pack.
+set "DOTNET=%ProgramFiles%\dotnet\dotnet.exe"
+if not exist "%DOTNET%" (
+    echo ERROR: dotnet CLI not found at "%DOTNET%"
+    echo Please install the .NET 6 SDK or a compatible dotnet host.
     exit /b 1
 )
 
 if not exist "bin" mkdir "bin"
+if not exist "obj" mkdir "obj"
 
 set "OUTPUT=bin\GhostThrough.exe"
 if exist "%OUTPUT%" (
@@ -16,24 +17,17 @@ if exist "%OUTPUT%" (
     del "%OUTPUT%"
 )
 
-set "SOURCES=Program.cs JsonFileSerializer.cs NativeMethods.cs KeyboardHook.cs MouseHook.cs GhostController.cs ActivationStateManager.cs WindowTransparencyManager.cs TooltipService.cs SettingsManager.cs ProfileManager.cs OpacityProfilePresets.cs HotkeyManager.cs DebugLogger.cs IActivationHost.cs ActivationKeyCatalog.cs ActivationTypeExtensions.cs AppContext.cs TrayMenuController.cs Models\Settings.cs Models\Profile.cs Models\GhostWindowState.cs"
-
 echo Compiling...
-"%CSC%" /nologo /target:winexe /out:"%OUTPUT%" ^
-    /win32icon:resources\icons\icon.ico ^
-    /reference:System.Windows.Forms.dll ^
-    /reference:System.Drawing.dll ^
-    /reference:System.Runtime.Serialization.dll ^
-    %SOURCES% 2> compile_errors.txt
+"%DOTNET%" msbuild "%~dp0GhostThrough.csproj" /t:Build /p:Configuration=Release /p:Platform=AnyCPU /p:OutDir=%CD%\bin\ /p:BaseIntermediateOutputPath=%CD%\obj\GhostThrough\ /v:m 2> obj\compile_errors.txt
 
 if errorlevel 1 (
     echo.
     echo COMPILATION FAILED!
     echo.
-    type compile_errors.txt
+    type obj\compile_errors.txt
     exit /b 1
 )
 
 echo.
 echo Build successful: %OUTPUT%
-if exist compile_errors.txt del compile_errors.txt
+if exist obj\compile_errors.txt del obj\compile_errors.txt
