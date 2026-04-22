@@ -21,17 +21,17 @@ namespace GhostThrough
             else
                 _trayIcon.Icon = System.Drawing.SystemIcons.Application;
 
-            _trayIcon.ContextMenu = BuildMenu();
+            _trayIcon.ContextMenuStrip = BuildMenu();
             _trayIcon.Visible = true;
         }
 
-        private ContextMenu BuildMenu()
+        private ContextMenuStrip BuildMenu()
         {
-            var menu = new ContextMenu();
-            menu.MenuItems.Add("Activation Key", (s, e) => ShowKeySelectionMenu());
-            menu.MenuItems.Add("Activation Method", (s, e) => ShowActivationSettings());
-            menu.MenuItems.Add("-");
-            menu.MenuItems.Add("Exit", (s, e) => Application.Exit());
+            var menu = new ContextMenuStrip();
+            menu.Items.Add("Activation Key", null, (s, e) => ShowKeySelectionMenu());
+            menu.Items.Add("Activation Method", null, (s, e) => ShowActivationSettings());
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("Exit", null, (s, e) => Application.Exit());
             return menu;
         }
 

@@ -4,30 +4,18 @@ echo Building GhostThrough...
 set "DOTNET=%ProgramFiles%\dotnet\dotnet.exe"
 if not exist "%DOTNET%" (
     echo ERROR: dotnet CLI not found at "%DOTNET%"
-    echo Please install the .NET 6 SDK or a compatible dotnet host.
+    echo Please install the .NET 8 SDK or a compatible dotnet host.
     exit /b 1
 )
 
-if not exist "bin" mkdir "bin"
-if not exist "obj" mkdir "obj"
-
-set "OUTPUT=bin\GhostThrough.exe"
-if exist "%OUTPUT%" (
-    echo Removing old executable...
-    del "%OUTPUT%"
-)
-
 echo Compiling...
-"%DOTNET%" msbuild "%~dp0GhostThrough.csproj" /t:Build /p:Configuration=Release /p:Platform=AnyCPU /p:OutDir=%CD%\bin\ /p:BaseIntermediateOutputPath=%CD%\obj\GhostThrough\ /v:m 2> obj\compile_errors.txt
+"%DOTNET%" build "%~dp0GhostThrough.csproj" -c Release -v:minimal
 
 if errorlevel 1 (
     echo.
     echo COMPILATION FAILED!
-    echo.
-    type obj\compile_errors.txt
     exit /b 1
 )
 
 echo.
-echo Build successful: %OUTPUT%
-if exist obj\compile_errors.txt del obj\compile_errors.txt
+echo Build successful: bin\Release\net8.0-windows\GhostThrough.exe

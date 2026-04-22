@@ -176,7 +176,7 @@ GhostThrough поддерживает два режима активации:
 
 ## Сборка
 
-В репозитории теперь есть MSBuild-проекты, а поддерживаемые пути сборки — `compile.bat` и `run-regression-test.bat`.
+В репозитории теперь есть SDK-style MSBuild-проекты с таргетом `net8.0-windows`, а поддерживаемые пути сборки — `compile.bat` и `run-regression-test.bat`.
 
 ### Быстрая сборка
 
@@ -189,7 +189,7 @@ compile.bat
 ### Ручная сборка
 
 ```bat
-dotnet msbuild GhostThrough.csproj /t:Build /p:Configuration=Release
+dotnet build GhostThrough.csproj -c Release
 ```
 
 ## Регрессионный тест
@@ -210,8 +210,8 @@ dotnet msbuild GhostThrough.csproj /t:Build /p:Configuration=Release
 Сборка и запуск:
 
 ```bat
-dotnet msbuild KeyboardHookRegressionTest.csproj /t:Build /p:Configuration=Release
-bin\KeyboardHookRegressionTest.exe
+dotnet build KeyboardHookRegressionTest.csproj -c Release
+bin\Release\net8.0-windows\KeyboardHookRegressionTest.exe
 ```
 
 Ожидаемый результат:
@@ -238,14 +238,14 @@ PASS
 
 1. Клонируйте репозиторий.
 2. Соберите проект через `compile.bat`.
-3. Запустите `bin\GhostThrough.exe`.
+3. Запустите `bin\Release\net8.0-windows\GhostThrough.exe`.
 
 ## Известные ограничения
 
 - Приложение работает только на Windows и зависит от low-level global hooks и манипуляции Win32-стилями окон.
 - В репозитории сейчас отслеживаются сгенерированные файлы вроде `GhostThrough.exe`, `GhostThrough.pdb` и `ghostthrough_debug.log`.
 - По-прежнему нет installer, updater и полноценного автоматизированного набора тестов.
-- Слой настроек теперь использует `DataContractJsonSerializer`, что надёжнее внутри классического .NET Framework, чем прежний `JavaScriptSerializer`, но проект всё ещё не мигрирован на современный SDK-style .NET.
+- Слой настроек теперь использует `DataContractJsonSerializer`, а проекты переведены на SDK-style `net8.0-windows`.
 - В корне репозитория пока нет файла `LICENSE`.
 
 Автор: [olegiy](https://github.com/olegiy)

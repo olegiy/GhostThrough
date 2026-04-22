@@ -18,8 +18,8 @@ GhostThrough is a C# WinForms tray utility for Windows that makes the window und
 - **HotkeyManager.cs** — Hardcoded `Ctrl+Shift+Up/Down` profile cycling hotkeys
 - **SettingsManager.cs** — Loads/saves v2 JSON settings via `DataContractJsonSerializer` and migrates legacy line-based settings
 - **JsonFileSerializer.cs** — Shared JSON serialization helper for settings and regression tests
-- **GhostThrough.csproj** — Main MSBuild project for the tray application
-- **KeyboardHookRegressionTest.csproj** — Standalone regression-test MSBuild project
+- **GhostThrough.csproj** — Main SDK-style MSBuild project for the tray application
+- **KeyboardHookRegressionTest.csproj** — Standalone SDK-style regression-test project
 - **ActivationKeyCatalog.cs** — Allowed activation-key list and display names used by the tray menu
 - **ActivationTypeExtensions.cs** — Conversion helpers between persisted setting values and runtime activation enums
 - **IActivationHost.cs** — Shared contract used by keyboard and mouse hooks
@@ -40,15 +40,15 @@ GhostThrough is a C# WinForms tray utility for Windows that makes the window und
 - Single-instance via named Mutex "GhostThroughApp"
 
 ## Build
-MSBuild project files are present. Build with `compile.bat` or call `dotnet msbuild` directly:
+MSBuild project files are present. Build with `compile.bat` or call `dotnet build` directly:
 ```bash
-dotnet msbuild GhostThrough.csproj /t:Build /p:Configuration=Release
+dotnet build GhostThrough.csproj -c Release
 ```
 
 Regression test build/run:
 ```bash
-dotnet msbuild KeyboardHookRegressionTest.csproj /t:Build /p:Configuration=Release
-bin\KeyboardHookRegressionTest.exe
+dotnet build KeyboardHookRegressionTest.csproj -c Release
+bin\Release\net8.0-windows\KeyboardHookRegressionTest.exe
 ```
 
 ## Conventions

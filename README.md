@@ -176,7 +176,7 @@ Notes:
 
 ## Build
 
-The repository now includes MSBuild project files, and the supported build paths are `compile.bat` and `run-regression-test.bat`.
+The repository now includes SDK-style MSBuild project files targeting `net8.0-windows`, and the supported build paths are `compile.bat` and `run-regression-test.bat`.
 
 ### Quick build
 
@@ -189,7 +189,7 @@ The build now writes to `bin\GhostThrough.exe`, which avoids conflicts with olde
 ### Manual build
 
 ```bat
-dotnet msbuild GhostThrough.csproj /t:Build /p:Configuration=Release
+dotnet build GhostThrough.csproj -c Release
 ```
 
 ## Regression Test
@@ -210,8 +210,8 @@ It currently verifies:
 Build and run it with:
 
 ```bat
-dotnet msbuild KeyboardHookRegressionTest.csproj /t:Build /p:Configuration=Release
-bin\KeyboardHookRegressionTest.exe
+dotnet build KeyboardHookRegressionTest.csproj -c Release
+bin\Release\net8.0-windows\KeyboardHookRegressionTest.exe
 ```
 
 Expected result:
@@ -238,14 +238,14 @@ PASS
 
 1. Clone the repository.
 2. Build with `compile.bat`.
-3. Run `bin\GhostThrough.exe`.
+3. Run `bin\Release\net8.0-windows\GhostThrough.exe`.
 
 ## Known Limitations
 
 - The app is Windows-only and depends on low-level global hooks plus Win32 style manipulation.
 - The repository currently tracks generated files such as `GhostThrough.exe`, `GhostThrough.pdb`, and `ghostthrough_debug.log`.
 - There is still no installer, updater, or broad automated test suite.
-- The settings layer now uses `DataContractJsonSerializer`, which is more portable inside classic .NET Framework than the old `JavaScriptSerializer`, but the project is still not migrated to a modern SDK-style .NET setup.
+- The settings layer now uses `DataContractJsonSerializer`, and the projects are on SDK-style `net8.0-windows`.
 - No `LICENSE` file is currently tracked in the repository root.
 
 Created by [olegiy](https://github.com/olegiy)
