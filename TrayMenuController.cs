@@ -8,6 +8,10 @@ namespace GhostThrough
     {
         private readonly AppContext _appContext;
         private readonly NotifyIcon _trayIcon;
+        private readonly ContextMenuStrip _menu;
+        private readonly ToolStripMenuItem _activationKeyMenuItem;
+        private readonly ToolStripMenuItem _activationMethodMenuItem;
+        private bool _disposed;
 
         public TrayMenuController(AppContext appContext)
         {
@@ -21,87 +25,200 @@ namespace GhostThrough
             else
                 _trayIcon.Icon = System.Drawing.SystemIcons.Application;
 
-            _trayIcon.ContextMenuStrip = BuildMenu();
+            _activationKeyMenuItem = BuildActivationKeyMenuItem();
+            _activationMethodMenuItem = BuildActivationMethodMenuItem();
+            _menu = BuildMenu();
+
+            _trayIcon.ContextMenuStrip = _menu;
             _trayIcon.Visible = true;
         }
 
         private ContextMenuStrip BuildMenu()
         {
             var menu = new ContextMenuStrip();
-            menu.Items.Add("Activation Key", null, (s, e) => ShowKeySelectionMenu());
-            menu.Items.Add("Activation Method", null, (s, e) => ShowActivationSettings());
+            menu.Opening += OnMenuOpening;
+            menu.Closed += OnMenuClosed;
+            menu.Items.Add(_activationKeyMenuItem);
+            menu.Items.Add(_activationMethodMenuItem);
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Exit", null, (s, e) => Application.Exit());
+
+            var exitItem = new ToolStripMenuItem("Exit");
+            exitItem.Click += (s, e) =>
+            {
+                if (_disposed)
+                    return;
+
+                // Delay shutdown until the current menu message unwinds.
+                _menu.BeginInvoke((Action)Application.Exit);
+            };
+
+            menu.Items.Add(exitItem);
             return menu;
         }
 
-        private void ShowActivationSettings()
+        private void OnMenuOpening(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            var menu = new ContextMenuStrip();
-            menu.Closed += (s, e) => menu.Dispose();
-            var activationType = _appContext.Settings.Activation.Type.ToActivationInputType();
+            if (_disposed)
+                return;
 
-            var keyboardItem = new ToolStripMenuItem("Keyboard");
-            var mouseMiddleItem = new ToolStripMenuItem("Mouse (Middle Button)");
-            var mouseRightItem = new ToolStripMenuItem("Mouse (Right Button)");
-            var mouseX1Item = new ToolStripMenuItem("Mouse (X1 Button)");
-            var mouseX2Item = new ToolStripMenuItem("Mouse (X2 Button)");
-
-            if (activationType == ActivationInputType.Keyboard)
-            {
-                keyboardItem.Checked = true;
-            }
-            else
-            {
-                switch (_appContext.Settings.Activation.MouseButton)
-                {
-                    case NativeMethods.VK_MBUTTON: mouseMiddleItem.Checked = true; break;
-                    case NativeMethods.VK_RBUTTON: mouseRightItem.Checked = true; break;
-                    case NativeMethods.VK_XBUTTON1: mouseX1Item.Checked = true; break;
-                    case NativeMethods.VK_XBUTTON2: mouseX2Item.Checked = true; break;
-                }
-            }
-
-            keyboardItem.Click += (s, e) => _appContext.Reconfigure(ActivationInputType.Keyboard, _appContext.Settings.Activation.KeyCode, NativeMethods.VK_MBUTTON);
-            mouseMiddleItem.Click += (s, e) => _appContext.Reconfigure(ActivationInputType.Mouse, _appContext.Settings.Activation.KeyCode, NativeMethods.VK_MBUTTON);
-            mouseRightItem.Click += (s, e) => _appContext.Reconfigure(ActivationInputType.Mouse, _appContext.Settings.Activation.KeyCode, NativeMethods.VK_RBUTTON);
-            mouseX1Item.Click += (s, e) => _appContext.Reconfigure(ActivationInputType.Mouse, _appContext.Settings.Activation.KeyCode, NativeMethods.VK_XBUTTON1);
-            mouseX2Item.Click += (s, e) => _appContext.Reconfigure(ActivationInputType.Mouse, _appContext.Settings.Activation.KeyCode, NativeMethods.VK_XBUTTON2);
-
-            menu.Items.Add(keyboardItem);
-            menu.Items.Add(mouseMiddleItem);
-            menu.Items.Add(mouseRightItem);
-            menu.Items.Add(mouseX1Item);
-            menu.Items.Add(mouseX2Item);
-
-            menu.ItemClicked += (s, e) => menu.Close();
-            menu.Show(Cursor.Position);
+            _appContext.Controller.OnOtherInputBeforeActivation();
+            _appContext.MouseHook.SuppressSelectedMouseButtonFor(500);
         }
 
-        private void ShowKeySelectionMenu()
+        private void OnMenuClosed(object sender, ToolStripDropDownClosedEventArgs e)
         {
-            var menu = new ContextMenuStrip();
-            menu.Closed += (s, e) => menu.Dispose();
+            if (_disposed)
+                return;
+
+            _appContext.Controller.OnOtherInputBeforeActivation();
+            _appContext.MouseHook.SuppressSelectedMouseButtonFor(500);
+        }
+
+        private ToolStripMenuItem BuildActivationMethodMenuItem()
+        {
+            var item = new ToolStripMenuItem("Activation Method");
+            item.DropDownOpening += (s, e) => RefreshActivationMethodMenu(item);
+
+            item.DropDownItems.Add(new ToolStripMenuItem("Keyboard", null, OnActivationMethodKeyboardClick));
+            item.DropDownItems.Add(new ToolStripMenuItem("Mouse (Middle Button)", null, OnActivationMethodMouseMiddleClick));
+            item.DropDownItems.Add(new ToolStripMenuItem("Mouse (Right Button)", null, OnActivationMethodMouseRightClick));
+            item.DropDownItems.Add(new ToolStripMenuItem("Mouse (X1 Button)", null, OnActivationMethodMouseX1Click));
+            item.DropDownItems.Add(new ToolStripMenuItem("Mouse (X2 Button)", null, OnActivationMethodMouseX2Click));
+
+            return item;
+        }
+
+        private ToolStripMenuItem BuildActivationKeyMenuItem()
+        {
+            var item = new ToolStripMenuItem("Activation Key");
+            item.DropDownOpening += (s, e) => RefreshActivationKeyMenu(item);
 
             foreach (int vkCode in ActivationKeyCatalog.AvailableKeys)
             {
                 int key = vkCode;
-                var item = new ToolStripMenuItem(ActivationKeyCatalog.GetDisplayName(vkCode));
-                item.Checked = key == _appContext.Settings.Activation.KeyCode;
-                item.Click += (s, e) => _appContext.Reconfigure(
-                    _appContext.Settings.Activation.Type.ToActivationInputType(),
-                    key,
-                    _appContext.Settings.Activation.MouseButton);
-                menu.Items.Add(item);
+                var keyItem = new ToolStripMenuItem(ActivationKeyCatalog.GetDisplayName(vkCode));
+                keyItem.Tag = key;
+                keyItem.Click += OnActivationKeyClick;
+                item.DropDownItems.Add(keyItem);
             }
 
-            menu.ItemClicked += (s, e) => menu.Close();
-            menu.Show(Cursor.Position);
+            return item;
+        }
+
+        private void RefreshActivationMethodMenu(ToolStripMenuItem item)
+        {
+            var activationType = _appContext.Settings.Activation.Type.ToActivationInputType();
+            int selectedMouseButton = _appContext.Settings.Activation.MouseButton;
+
+            for (int i = 0; i < item.DropDownItems.Count; i++)
+            {
+                var child = item.DropDownItems[i] as ToolStripMenuItem;
+                if (child == null)
+                    continue;
+
+                child.Checked = false;
+            }
+
+            if (activationType == ActivationInputType.Keyboard)
+            {
+                ((ToolStripMenuItem)item.DropDownItems[0]).Checked = true;
+                return;
+            }
+
+            switch (selectedMouseButton)
+            {
+                case NativeMethods.VK_MBUTTON:
+                    ((ToolStripMenuItem)item.DropDownItems[1]).Checked = true;
+                    break;
+                case NativeMethods.VK_RBUTTON:
+                    ((ToolStripMenuItem)item.DropDownItems[2]).Checked = true;
+                    break;
+                case NativeMethods.VK_XBUTTON1:
+                    ((ToolStripMenuItem)item.DropDownItems[3]).Checked = true;
+                    break;
+                case NativeMethods.VK_XBUTTON2:
+                    ((ToolStripMenuItem)item.DropDownItems[4]).Checked = true;
+                    break;
+            }
+        }
+
+        private void RefreshActivationKeyMenu(ToolStripMenuItem item)
+        {
+            int selectedKey = _appContext.Settings.Activation.KeyCode;
+
+            foreach (ToolStripItem dropDownItem in item.DropDownItems)
+            {
+                var keyItem = dropDownItem as ToolStripMenuItem;
+                if (keyItem == null)
+                    continue;
+
+                int key = (int)keyItem.Tag;
+                keyItem.Checked = key == selectedKey;
+            }
+        }
+
+        private void OnActivationKeyClick(object sender, EventArgs e)
+        {
+            if (_disposed)
+                return;
+
+            var item = sender as ToolStripMenuItem;
+            if (item == null || !(item.Tag is int))
+                return;
+
+            int key = (int)item.Tag;
+            _appContext.Reconfigure(
+                _appContext.Settings.Activation.Type.ToActivationInputType(),
+                key,
+                _appContext.Settings.Activation.MouseButton);
+        }
+
+        private void OnActivationMethodKeyboardClick(object sender, EventArgs e)
+        {
+            ReconfigureActivationMethod(ActivationInputType.Keyboard, NativeMethods.VK_MBUTTON);
+        }
+
+        private void OnActivationMethodMouseMiddleClick(object sender, EventArgs e)
+        {
+            ReconfigureActivationMethod(ActivationInputType.Mouse, NativeMethods.VK_MBUTTON);
+        }
+
+        private void OnActivationMethodMouseRightClick(object sender, EventArgs e)
+        {
+            ReconfigureActivationMethod(ActivationInputType.Mouse, NativeMethods.VK_RBUTTON);
+        }
+
+        private void OnActivationMethodMouseX1Click(object sender, EventArgs e)
+        {
+            ReconfigureActivationMethod(ActivationInputType.Mouse, NativeMethods.VK_XBUTTON1);
+        }
+
+        private void OnActivationMethodMouseX2Click(object sender, EventArgs e)
+        {
+            ReconfigureActivationMethod(ActivationInputType.Mouse, NativeMethods.VK_XBUTTON2);
+        }
+
+        private void ReconfigureActivationMethod(ActivationInputType activationType, int mouseButton)
+        {
+            if (_disposed)
+                return;
+
+            _appContext.Reconfigure(activationType, _appContext.Settings.Activation.KeyCode, mouseButton);
         }
 
         public void Dispose()
         {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+
+            if (_menu.Visible)
+                _menu.Close();
+
             _trayIcon.Visible = false;
+            _trayIcon.ContextMenuStrip = null;
+            _menu.Dispose();
             _trayIcon.Dispose();
         }
     }

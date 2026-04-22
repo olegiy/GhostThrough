@@ -163,22 +163,34 @@ namespace GhostThrough
 
         public void OnKeyDown()
         {
-            OnActivationInputDown();
+            if (CurrentActivationType != ActivationInputType.Keyboard)
+                return;
+
+            _activationState.OnActivationKeyDown();
         }
 
         public void OnKeyUp()
         {
-            OnActivationInputUp();
+            if (CurrentActivationType != ActivationInputType.Keyboard)
+                return;
+
+            _activationState.OnActivationKeyUp();
         }
 
         public void OnMouseButtonDown()
         {
-            OnActivationInputDown();
+            if (CurrentActivationType != ActivationInputType.Mouse)
+                return;
+
+            _activationState.OnMouseButtonDown();
         }
 
         public void OnMouseButtonUp()
         {
-            OnActivationInputUp();
+            if (CurrentActivationType != ActivationInputType.Mouse)
+                return;
+
+            _activationState.OnMouseButtonUp();
         }
 
         public void BlockGhostMode()

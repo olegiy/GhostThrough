@@ -26,6 +26,7 @@ namespace GhostThrough
         
         // Состояние нажатия выбранной кнопки мыши
         private bool _isMouseButtonDown = false;
+        private long _ignoreSelectedMouseUntilTicks;
 
         public event Action OnSelectedMouseDown;
         public event Action OnSelectedMouseUp;
@@ -90,6 +91,12 @@ namespace GhostThrough
                 
                 if (mouseButton == currentSelectedButton)
                 {
+                    if (ShouldIgnoreSelectedMouseInput())
+                    {
+                        DebugLogger.Log(string.Format("HookCallback: Ignoring selected mouse button while tray/menu state settles, wParam={0}, button={1}", wParam, mouseButton));
+                        return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);
+                    }
+
                     DebugLogger.Log(string.Format("HookCallback: Selected mouse button detected, wParam={0}, button={1}", wParam, mouseButton));
 
                     // Безопасное копирование события для проверки null
@@ -182,6 +189,20 @@ namespace GhostThrough
             }
             DebugLogger.Log(string.Format("MouseHook: Selected mouse button changed to {0}", mouseButton));
         }
+
+        public void SuppressSelectedMouseButtonFor(int milliseconds)
+        {
+            long nowTicks = Environment.TickCount64;
+
+            lock (_lockObject)
+            {
+                _isMouseButtonDown = false;
+                _mouseButtonPressedAfterSelected = false;
+                _ignoreSelectedMouseUntilTicks = nowTicks + milliseconds;
+            }
+
+            DebugLogger.Log(string.Format("MouseHook: Suppressing selected mouse button for {0} ms", milliseconds));
+        }
         
         // Свойство для получения текущей выбранной кнопки мыши
         public int SelectedMouseButton
@@ -243,6 +264,14 @@ namespace GhostThrough
                 try { handler(); }
                 catch (Exception ex) { DebugLogger.Log(string.Format("{0}: {1}", label, ex.Message)); }
             }, null);
+        }
+
+        private bool ShouldIgnoreSelectedMouseInput()
+        {
+            lock (_lockObject)
+            {
+                return Environment.TickCount64 < _ignoreSelectedMouseUntilTicks;
+            }
         }
     }
 }
