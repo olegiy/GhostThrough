@@ -163,6 +163,7 @@ namespace GhostThrough.Tests
                 settings.Activation.Type = "invalid-type";
                 settings.Activation.KeyCode = NativeMethods.VK_LCONTROL;
                 settings.Activation.MouseButton = NativeMethods.VK_LBUTTON;
+                settings.Activation.ActivationDelayMs = 42;
                 File.WriteAllText(settingsPath, JsonFileSerializer.Serialize(settings));
 
                 var manager = new SettingsManager(settingsPath);
@@ -181,6 +182,11 @@ namespace GhostThrough.Tests
                 if (loaded.Activation.MouseButton != NativeMethods.VK_MBUTTON)
                 {
                     throw new InvalidOperationException("FAIL: SettingsManager did not normalize invalid mouse button to Middle Button.");
+                }
+
+                if (loaded.Activation.ActivationDelayMs != ActivationStateManager.MIN_ACTIVATION_DELAY_MS)
+                {
+                    throw new InvalidOperationException("FAIL: SettingsManager did not normalize activation delay to the minimum supported value.");
                 }
             }
             finally
@@ -227,6 +233,7 @@ namespace GhostThrough.Tests
                 original.Activation.Type = "mouse";
                 original.Activation.KeyCode = NativeMethods.VK_SPACE;
                 original.Activation.MouseButton = NativeMethods.VK_XBUTTON1;
+                original.Activation.ActivationDelayMs = 1300;
                 original.Profiles.List = new List<ProfileData>
                 {
                     new ProfileData { Id = "custom_1", Name = "15%", Opacity = 38 },
@@ -253,7 +260,8 @@ namespace GhostThrough.Tests
 
                 if (loaded.Activation.Type != "mouse" ||
                     loaded.Activation.KeyCode != NativeMethods.VK_SPACE ||
-                    loaded.Activation.MouseButton != NativeMethods.VK_XBUTTON1)
+                    loaded.Activation.MouseButton != NativeMethods.VK_XBUTTON1 ||
+                    loaded.Activation.ActivationDelayMs != 1300)
                 {
                     throw new InvalidOperationException("FAIL: SettingsManager did not preserve activation settings during round-trip save/load.");
                 }
@@ -414,6 +422,11 @@ namespace GhostThrough.Tests
                 if (loaded.Activation.MouseButton != NativeMethods.VK_MBUTTON)
                 {
                     throw new InvalidOperationException("FAIL: V1 migration did not normalize invalid mouse button to Middle Button.");
+                }
+
+                if (loaded.Activation.ActivationDelayMs != ActivationStateManager.DEFAULT_ACTIVATION_DELAY_MS)
+                {
+                    throw new InvalidOperationException("FAIL: V1 migration did not assign the default activation delay.");
                 }
 
                 if (!File.Exists(settingsPath + ".bak"))

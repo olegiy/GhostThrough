@@ -36,12 +36,15 @@ namespace GhostThrough.Models
         public int KeyCode { get; set; }
         [DataMember(Order = 3)]
         public int MouseButton { get; set; }
+        [DataMember(Order = 4)]
+        public int ActivationDelayMs { get; set; }
 
         public ActivationSettings()
         {
             Type = "keyboard";
             KeyCode = NativeMethods.VK_LWIN;
             MouseButton = NativeMethods.VK_MBUTTON;
+            ActivationDelayMs = ActivationStateManager.DEFAULT_ACTIVATION_DELAY_MS;
         }
     }
 

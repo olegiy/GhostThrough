@@ -11,6 +11,7 @@ namespace GhostThrough
         private readonly ContextMenuStrip _menu;
         private readonly ToolStripMenuItem _activationKeyMenuItem;
         private readonly ToolStripMenuItem _activationMethodMenuItem;
+        private readonly ToolStripMenuItem _activationDelayMenuItem;
         private bool _disposed;
 
         public TrayMenuController(AppContext appContext)
@@ -31,6 +32,7 @@ namespace GhostThrough
 
             _activationKeyMenuItem = BuildActivationKeyMenuItem();
             _activationMethodMenuItem = BuildActivationMethodMenuItem();
+            _activationDelayMenuItem = BuildActivationDelayMenuItem();
             _menu = BuildMenu();
 
             _trayIcon.ContextMenuStrip = _menu;
@@ -44,6 +46,7 @@ namespace GhostThrough
             menu.Closed += OnMenuClosed;
             menu.Items.Add(_activationKeyMenuItem);
             menu.Items.Add(_activationMethodMenuItem);
+            menu.Items.Add(_activationDelayMenuItem);
             menu.Items.Add(new ToolStripSeparator());
 
             var exitItem = new ToolStripMenuItem("Exit");
@@ -109,6 +112,26 @@ namespace GhostThrough
             return item;
         }
 
+        private ToolStripMenuItem BuildActivationDelayMenuItem()
+        {
+            var item = new ToolStripMenuItem("Activation Hold Time");
+            item.DropDownOpening += (s, e) => RefreshActivationDelayMenu(item);
+
+            for (int delayMs = ActivationStateManager.MIN_ACTIVATION_DELAY_MS;
+                 delayMs <= ActivationStateManager.MAX_ACTIVATION_DELAY_MS;
+                 delayMs += ActivationStateManager.ACTIVATION_DELAY_STEP_MS)
+            {
+                int selectedDelay = delayMs;
+                string text = string.Format("{0:0.0} s", selectedDelay / 1000.0);
+                var delayItem = new ToolStripMenuItem(text);
+                delayItem.Tag = selectedDelay;
+                delayItem.Click += OnActivationDelayClick;
+                item.DropDownItems.Add(delayItem);
+            }
+
+            return item;
+        }
+
         private void RefreshActivationMethodMenu(ToolStripMenuItem item)
         {
             var activationType = _appContext.Settings.Activation.Type.ToActivationInputType();
@@ -161,6 +184,21 @@ namespace GhostThrough
             }
         }
 
+        private void RefreshActivationDelayMenu(ToolStripMenuItem item)
+        {
+            int selectedDelayMs = _appContext.Settings.Activation.ActivationDelayMs;
+
+            foreach (ToolStripItem dropDownItem in item.DropDownItems)
+            {
+                var delayItem = dropDownItem as ToolStripMenuItem;
+                if (delayItem == null)
+                    continue;
+
+                int delayMs = (int)delayItem.Tag;
+                delayItem.Checked = delayMs == selectedDelayMs;
+            }
+        }
+
         private void OnActivationKeyClick(object sender, EventArgs e)
         {
             if (_disposed)
@@ -200,6 +238,19 @@ namespace GhostThrough
         private void OnActivationMethodMouseX2Click(object sender, EventArgs e)
         {
             ReconfigureActivationMethod(ActivationInputType.Mouse, NativeMethods.VK_XBUTTON2);
+        }
+
+        private void OnActivationDelayClick(object sender, EventArgs e)
+        {
+            if (_disposed)
+                return;
+
+            var item = sender as ToolStripMenuItem;
+            if (item == null || !(item.Tag is int))
+                return;
+
+            int activationDelayMs = (int)item.Tag;
+            _appContext.ReconfigureActivationDelay(activationDelayMs);
         }
 
         private void ReconfigureActivationMethod(ActivationInputType activationType, int mouseButton)

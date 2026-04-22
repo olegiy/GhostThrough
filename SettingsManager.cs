@@ -179,6 +179,13 @@ namespace GhostThrough
                 changed = true;
             }
 
+            int normalizedActivationDelayMs = ActivationStateManager.NormalizeActivationDelayMs(settings.Activation.ActivationDelayMs);
+            if (settings.Activation.ActivationDelayMs != normalizedActivationDelayMs)
+            {
+                settings.Activation.ActivationDelayMs = normalizedActivationDelayMs;
+                changed = true;
+            }
+
             return changed;
         }
 

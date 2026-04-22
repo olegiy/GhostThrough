@@ -31,9 +31,13 @@ namespace GhostThrough
         // Timers
         private Timer _activationTimer;
         private Timer _suppressTimer;
+        private int _activationDelayMs;
 
         // Constants
-        private const int GHOST_MODE_ACTIVATION_DELAY_MS = 1000;
+        public const int MIN_ACTIVATION_DELAY_MS = 300;
+        public const int MAX_ACTIVATION_DELAY_MS = 1500;
+        public const int ACTIVATION_DELAY_STEP_MS = 100;
+        public const int DEFAULT_ACTIVATION_DELAY_MS = 1000;
         private const int SUPPRESS_AFTER_DEACTIVATE_MS = 100;
 
         // Public state properties
@@ -72,21 +76,64 @@ namespace GhostThrough
             get { return _timerFired; }
         }
 
-        public ActivationStateManager(ActivationInputType activationType)
+        public int ActivationDelayMs
+        {
+            get
+            {
+                lock (_lockObject)
+                    return _activationDelayMs;
+            }
+            set
+            {
+                lock (_lockObject)
+                {
+                    _activationDelayMs = NormalizeActivationDelayMs(value);
+                    if (_activationTimer != null)
+                        _activationTimer.Interval = _activationDelayMs;
+                }
+            }
+        }
+
+        public ActivationStateManager(ActivationInputType activationType, int activationDelayMs = DEFAULT_ACTIVATION_DELAY_MS)
         {
             _activationType = activationType;
+            _activationDelayMs = NormalizeActivationDelayMs(activationDelayMs);
             InitializeTimers();
         }
 
         private void InitializeTimers()
         {
             _activationTimer = new Timer();
-            _activationTimer.Interval = GHOST_MODE_ACTIVATION_DELAY_MS;
+            _activationTimer.Interval = _activationDelayMs;
             _activationTimer.Tick += OnActivationTimerTick;
 
             _suppressTimer = new Timer();
             _suppressTimer.Interval = SUPPRESS_AFTER_DEACTIVATE_MS;
             _suppressTimer.Tick += OnSuppressTimerTick;
+        }
+
+        public static int NormalizeActivationDelayMs(int delayMs)
+        {
+            if (delayMs <= 0)
+                return DEFAULT_ACTIVATION_DELAY_MS;
+
+            if (delayMs < MIN_ACTIVATION_DELAY_MS)
+                return MIN_ACTIVATION_DELAY_MS;
+
+            if (delayMs > MAX_ACTIVATION_DELAY_MS)
+                return MAX_ACTIVATION_DELAY_MS;
+
+            double stepIndex = (delayMs - MIN_ACTIVATION_DELAY_MS) / (double)ACTIVATION_DELAY_STEP_MS;
+            int roundedStepIndex = (int)Math.Round(stepIndex, MidpointRounding.AwayFromZero);
+            int normalized = MIN_ACTIVATION_DELAY_MS + roundedStepIndex * ACTIVATION_DELAY_STEP_MS;
+
+            if (normalized < MIN_ACTIVATION_DELAY_MS)
+                return MIN_ACTIVATION_DELAY_MS;
+
+            if (normalized > MAX_ACTIVATION_DELAY_MS)
+                return MAX_ACTIVATION_DELAY_MS;
+
+            return normalized;
         }
 
         public void OnActivationKeyDown()

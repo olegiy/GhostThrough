@@ -29,7 +29,7 @@ namespace GhostThrough
 
             var activationType = settings.Activation.Type.ToActivationInputType();
 
-            var controller = new GhostController(activationType, profileManager);
+            var controller = new GhostController(activationType, profileManager, settings.Activation.ActivationDelayMs);
             controller.ActivationKeyCode = GhostController.NormalizeActivationKeyCode(settings.Activation.KeyCode);
 
             var appContext = new AppContext
@@ -68,6 +68,11 @@ namespace GhostThrough
 
         public void Reconfigure(ActivationInputType activationType, int activationKeyCode, int mouseButton)
         {
+            Reconfigure(activationType, activationKeyCode, mouseButton, Settings.Activation.ActivationDelayMs);
+        }
+
+        public void Reconfigure(ActivationInputType activationType, int activationKeyCode, int mouseButton, int activationDelayMs)
+        {
             if (Controller.IsGhostModeActive)
                 Controller.DeactivateGhostMode();
 
@@ -77,11 +82,25 @@ namespace GhostThrough
 
             Controller.CurrentActivationType = activationType;
             Controller.ActivationKeyCode = activationKeyCode;
+            Controller.ActivationDelayMs = activationDelayMs;
             MouseHook.SetSelectedMouseButton(mouseButton);
 
             Settings.Activation.Type = activationType.ToSettingsValue();
             Settings.Activation.KeyCode = activationKeyCode;
             Settings.Activation.MouseButton = mouseButton;
+            Settings.Activation.ActivationDelayMs = Controller.ActivationDelayMs;
+
+            Save();
+        }
+
+        public void ReconfigureActivationDelay(int activationDelayMs)
+        {
+            if (Controller.IsGhostModeActive)
+                Controller.DeactivateGhostMode();
+
+            Controller.OnOtherInputBeforeActivation();
+            Controller.ActivationDelayMs = activationDelayMs;
+            Settings.Activation.ActivationDelayMs = Controller.ActivationDelayMs;
 
             Save();
         }
