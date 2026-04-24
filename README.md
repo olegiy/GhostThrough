@@ -184,13 +184,15 @@ The repository now includes SDK-style MSBuild project files targeting `net8.0-wi
 compile.bat
 ```
 
-The build now writes to `bin\GhostThrough.exe`, which avoids conflicts with older root-level binaries. If that exact `bin` executable is already running, exit it from the tray before rebuilding.
+The quick build publishes a self-contained single-file executable to `bin\publish\GhostThrough.exe`. That executable can be copied by itself, for example to Desktop.
 
 ### Manual build
 
 ```bat
 dotnet build GhostThrough.csproj -c Release
 ```
+
+`dotnet build` produces framework-dependent output in `bin\Release\net8.0-windows`. Keep `GhostThrough.exe`, `GhostThrough.dll`, `GhostThrough.deps.json`, and `GhostThrough.runtimeconfig.json` together when running that build output.
 
 ## Regression Test
 
@@ -238,7 +240,7 @@ PASS
 
 1. Clone the repository.
 2. Build with `compile.bat`.
-3. Run `bin\Release\net8.0-windows\GhostThrough.exe`.
+3. Run `bin\publish\GhostThrough.exe`.
 
 ## Known Limitations
 

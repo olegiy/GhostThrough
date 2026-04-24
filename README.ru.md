@@ -184,13 +184,15 @@ GhostThrough поддерживает два режима активации:
 compile.bat
 ```
 
-Сборка теперь пишет результат в `bin\GhostThrough.exe`, что уменьшает конфликты со старыми бинарниками в корне. Если запущен именно этот `bin`-exe, перед пересборкой закройте его через трей.
+Быстрая сборка публикует самодостаточный single-file executable в `bin\publish\GhostThrough.exe`. Этот файл можно копировать отдельно, например на рабочий стол.
 
 ### Ручная сборка
 
 ```bat
 dotnet build GhostThrough.csproj -c Release
 ```
+
+`dotnet build` создаёт framework-dependent output в `bin\Release\net8.0-windows`. Для запуска такого результата держите рядом `GhostThrough.exe`, `GhostThrough.dll`, `GhostThrough.deps.json` и `GhostThrough.runtimeconfig.json`.
 
 ## Регрессионный тест
 
@@ -238,7 +240,7 @@ PASS
 
 1. Клонируйте репозиторий.
 2. Соберите проект через `compile.bat`.
-3. Запустите `bin\Release\net8.0-windows\GhostThrough.exe`.
+3. Запустите `bin\publish\GhostThrough.exe`.
 
 ## Известные ограничения
 
