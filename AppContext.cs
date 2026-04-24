@@ -28,8 +28,9 @@ namespace GhostThrough
                 settings.Profiles.List.Select(p => new Profile(p.Id, p.Name, p.Opacity)).ToList());
 
             var activationType = settings.Activation.Type.ToActivationInputType();
+            var activationMode = settings.Activation.Mode.ToActivationMode();
 
-            var controller = new GhostController(activationType, profileManager, settings.Activation.ActivationDelayMs);
+            var controller = new GhostController(activationType, profileManager, settings.Activation.ActivationDelayMs, activationMode);
             controller.ActivationKeyCode = GhostController.NormalizeActivationKeyCode(settings.Activation.KeyCode);
 
             var appContext = new AppContext
@@ -83,12 +84,25 @@ namespace GhostThrough
             Controller.CurrentActivationType = activationType;
             Controller.ActivationKeyCode = activationKeyCode;
             Controller.ActivationDelayMs = activationDelayMs;
+            Controller.CurrentActivationMode = Settings.Activation.Mode.ToActivationMode();
             MouseHook.SetSelectedMouseButton(mouseButton);
 
             Settings.Activation.Type = activationType.ToSettingsValue();
             Settings.Activation.KeyCode = activationKeyCode;
             Settings.Activation.MouseButton = mouseButton;
             Settings.Activation.ActivationDelayMs = Controller.ActivationDelayMs;
+
+            Save();
+        }
+
+        public void ReconfigureActivationMode(ActivationMode activationMode)
+        {
+            if (Controller.IsGhostModeActive)
+                Controller.DeactivateGhostMode();
+
+            Controller.OnOtherInputBeforeActivation();
+            Controller.CurrentActivationMode = activationMode;
+            Settings.Activation.Mode = activationMode.ToSettingsValue();
 
             Save();
         }

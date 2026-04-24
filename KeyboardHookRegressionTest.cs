@@ -40,10 +40,12 @@ namespace GhostThrough.Tests
             try
             {
                 ShouldConvertActivationTypeStrings();
+                ShouldConvertActivationModeStrings();
                 ShouldExposeKnownActivationKeys();
                 ShouldExposeControllerThroughActivationHost();
                 ShouldOnlyDeactivateGhostModeOncePerRequest();
                 ShouldClearActivationStateEvenWithoutTrackedGhostWindow();
+                ShouldDeactivateKeyboardClickModeOnKeyUpAfterActivation();
                 ShouldNormalizeInvalidActivationSettingsOnLoad();
                 ShouldRoundTripSettingsThroughAtomicSave();
                 ShouldSanitizeInvalidProfilesOnLoad();
@@ -367,6 +369,7 @@ namespace GhostThrough.Tests
                 settings.Activation.KeyCode = NativeMethods.VK_LCONTROL;
                 settings.Activation.MouseButton = NativeMethods.VK_LBUTTON;
                 settings.Activation.ActivationDelayMs = 42;
+                settings.Activation.Mode = "invalid-mode";
                 File.WriteAllText(settingsPath, JsonFileSerializer.Serialize(settings));
 
                 var manager = new SettingsManager(settingsPath);
@@ -390,6 +393,11 @@ namespace GhostThrough.Tests
                 if (loaded.Activation.ActivationDelayMs != ActivationStateManager.MIN_ACTIVATION_DELAY_MS)
                 {
                     throw new InvalidOperationException("FAIL: SettingsManager did not normalize activation delay to the minimum supported value.");
+                }
+
+                if (loaded.Activation.Mode != "hold")
+                {
+                    throw new InvalidOperationException("FAIL: SettingsManager did not normalize invalid activation mode to hold.");
                 }
             }
             finally
@@ -437,6 +445,7 @@ namespace GhostThrough.Tests
                 original.Activation.KeyCode = NativeMethods.VK_SPACE;
                 original.Activation.MouseButton = NativeMethods.VK_XBUTTON1;
                 original.Activation.ActivationDelayMs = 1300;
+                original.Activation.Mode = "click";
                 original.Profiles.List = new List<ProfileData>
                 {
                     new ProfileData { Id = "custom_1", Name = "15%", Opacity = 38 },
@@ -464,7 +473,8 @@ namespace GhostThrough.Tests
                 if (loaded.Activation.Type != "mouse" ||
                     loaded.Activation.KeyCode != NativeMethods.VK_SPACE ||
                     loaded.Activation.MouseButton != NativeMethods.VK_XBUTTON1 ||
-                    loaded.Activation.ActivationDelayMs != 1300)
+                    loaded.Activation.ActivationDelayMs != 1300 ||
+                    loaded.Activation.Mode != "click")
                 {
                     throw new InvalidOperationException("FAIL: SettingsManager did not preserve activation settings during round-trip save/load.");
                 }
@@ -632,6 +642,11 @@ namespace GhostThrough.Tests
                     throw new InvalidOperationException("FAIL: V1 migration did not assign the default activation delay.");
                 }
 
+                if (loaded.Activation.Mode != "hold")
+                {
+                    throw new InvalidOperationException("FAIL: V1 migration did not assign the default activation mode.");
+                }
+
                 if (!File.Exists(settingsPath + ".bak"))
                 {
                     throw new InvalidOperationException("FAIL: V1 migration did not create a backup .bak file.");
@@ -678,6 +693,60 @@ namespace GhostThrough.Tests
             if (ActivationInputType.Keyboard.ToSettingsValue() != "keyboard")
             {
                 throw new InvalidOperationException("FAIL: ActivationInputType.Keyboard did not serialize to keyboard.");
+            }
+        }
+
+        private static void ShouldConvertActivationModeStrings()
+        {
+            if ("hold".ToActivationMode() != ActivationMode.Hold)
+            {
+                throw new InvalidOperationException("FAIL: hold string did not map to ActivationMode.Hold.");
+            }
+
+            if ("click".ToActivationMode() != ActivationMode.Click)
+            {
+                throw new InvalidOperationException("FAIL: click string did not map to ActivationMode.Click.");
+            }
+
+            if (ActivationMode.Click.ToSettingsValue() != "click")
+            {
+                throw new InvalidOperationException("FAIL: ActivationMode.Click did not serialize to click.");
+            }
+        }
+
+        private static void ShouldDeactivateKeyboardClickModeOnKeyUpAfterActivation()
+        {
+            var manager = new ActivationStateManager(ActivationInputType.Keyboard, ActivationStateManager.DEFAULT_ACTIVATION_DELAY_MS, ActivationMode.Click);
+            bool activated = false;
+            bool deactivated = false;
+
+            try
+            {
+                manager.OnGhostModeShouldActivate += () =>
+                {
+                    activated = true;
+                    return true;
+                };
+                manager.OnGhostModeShouldDeactivate += () => deactivated = true;
+
+                manager.OnActivationKeyDown();
+                InvokePrivateMethod(manager, "OnActivationTimerTick", null, EventArgs.Empty);
+
+                if (!activated || !manager.IsGhostModeActive)
+                {
+                    throw new InvalidOperationException("FAIL: Click mode did not activate after the keyboard hold timer fired.");
+                }
+
+                manager.OnActivationKeyUp();
+
+                if (!deactivated || manager.IsGhostModeActive)
+                {
+                    throw new InvalidOperationException("FAIL: Click mode did not deactivate when the activation key was released.");
+                }
+            }
+            finally
+            {
+                manager.Dispose();
             }
         }
 

@@ -15,5 +15,17 @@ namespace GhostThrough
         {
             return value == ActivationInputType.Mouse ? "mouse" : "keyboard";
         }
+
+        public static ActivationMode ToActivationMode(this string value)
+        {
+            return string.Equals(value, "click", StringComparison.OrdinalIgnoreCase)
+                ? ActivationMode.Click
+                : ActivationMode.Hold;
+        }
+
+        public static string ToSettingsValue(this ActivationMode value)
+        {
+            return value == ActivationMode.Click ? "click" : "hold";
+        }
     }
 }

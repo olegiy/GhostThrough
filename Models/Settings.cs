@@ -38,6 +38,8 @@ namespace GhostThrough.Models
         public int MouseButton { get; set; }
         [DataMember(Order = 4)]
         public int ActivationDelayMs { get; set; }
+        [DataMember(Order = 5)]
+        public string Mode { get; set; }
 
         public ActivationSettings()
         {
@@ -45,6 +47,7 @@ namespace GhostThrough.Models
             KeyCode = NativeMethods.VK_LWIN;
             MouseButton = NativeMethods.VK_MBUTTON;
             ActivationDelayMs = ActivationStateManager.DEFAULT_ACTIVATION_DELAY_MS;
+            Mode = "hold";
         }
     }
 

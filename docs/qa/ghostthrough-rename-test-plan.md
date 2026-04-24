@@ -10,6 +10,7 @@ Checked:
 - `KeyboardHookRegressionTest` passes with `PASS`
 - tray icon and menu entries
 - keyboard and mouse activation flows
+- activation behavior modes (`Hold` and `Click`)
 - Ghost Mode activation/deactivation behavior
 - opacity profile switching with `Ctrl+Shift+Up/Down`
 - settings path rename to `%APPDATA%\GhostThrough\settings.json`
@@ -35,18 +36,28 @@ Result:
 ### Tray menu
 - [ ] tray menu shows `Activation Key`
 - [ ] tray menu shows `Activation Method`
+- [ ] tray menu shows `Activation Mode`
+- [ ] tray menu shows `Activation Hold Time`
 - [ ] tray menu shows `Exit`
 - [ ] `Activation Method` submenu shows all expected keyboard and mouse options
 - [ ] `Activation Key` submenu shows the supported activation keys
+- [ ] `Activation Mode` submenu shows `Hold` and `Click`
+- [ ] `Activation Hold Time` submenu shows the supported delay values
 
-### Keyboard activation
-- [ ] holding the activation key for 1 second activates Ghost Mode
+### Keyboard activation - Hold mode
+- [ ] selecting `Activation Mode` -> `Hold` is persisted
+- [ ] holding the activation key for the configured delay activates Ghost Mode
 - [ ] releasing the key after activation keeps Ghost Mode active
 - [ ] short-pressing the activation key again deactivates Ghost Mode
 - [ ] pressing `Esc` during Ghost Mode deactivates immediately
 
+### Keyboard activation - Click mode
+- [ ] selecting `Activation Mode` -> `Click` is persisted
+- [ ] holding the activation key for the configured delay activates Ghost Mode
+- [ ] releasing the key after activation deactivates Ghost Mode
+
 ### Mouse activation
-- [ ] holding the selected mouse button for 1 second activates Ghost Mode
+- [ ] holding the selected mouse button for the configured delay activates Ghost Mode
 - [ ] releasing the selected mouse button deactivates Ghost Mode
 - [ ] pressing another mouse button before the selected one blocks activation
 - [ ] pressing another mouse button while holding the selected one blocks that activation attempt
@@ -90,6 +101,7 @@ Verify that renaming the project runtime identity from `PeekThrough` to `GhostTh
 - Ghost Mode
 - keyboard activation
 - mouse activation
+- activation behavior modes
 - profile switching
 - settings migration
 - logging
@@ -141,6 +153,8 @@ Expected result:
 2. Verify the main menu entries
 3. Open `Activation Method`
 4. Open `Activation Key`
+5. Open `Activation Mode`
+6. Open `Activation Hold Time`
 
 Expected result:
 - `Activation Key` is present
@@ -148,14 +162,17 @@ Expected result:
 - `Exit` is present
 - `Activation Method` lists all expected options
 - `Activation Key` lists the expected supported keys
+- `Activation Mode` lists `Hold` and `Click`
+- `Activation Hold Time` lists supported delay values
 
-#### 5. Keyboard activation
+#### 5. Keyboard activation - Hold mode
 
 1. Select keyboard activation
-2. Move the cursor over a normal application window
-3. Hold the activation key for 1 second
-4. Release the key
-5. Short-press the activation key again
+2. Select `Activation Mode` -> `Hold`
+3. Move the cursor over a normal application window
+4. Hold the activation key for the configured delay
+5. Release the key
+6. Short-press the activation key again
 
 Expected result:
 - Ghost Mode activates after the hold delay
@@ -163,7 +180,20 @@ Expected result:
 - releasing the key keeps Ghost Mode active
 - a short follow-up press deactivates Ghost Mode
 
-#### 6. Escape deactivation
+#### 6. Keyboard activation - Click mode
+
+1. Select keyboard activation
+2. Select `Activation Mode` -> `Click`
+3. Move the cursor over a normal application window
+4. Hold the activation key for the configured delay
+5. Release the key
+
+Expected result:
+- Ghost Mode activates after the hold delay
+- the target window becomes semi-transparent and click-through
+- releasing the key deactivates Ghost Mode
+
+#### 7. Escape deactivation
 
 1. Activate Ghost Mode in keyboard mode
 2. Press `Esc`
@@ -172,18 +202,18 @@ Expected result:
 - Ghost Mode deactivates immediately
 - the target window returns to its original state
 
-#### 7. Mouse activation
+#### 8. Mouse activation
 
 1. Select one of the mouse activation options
 2. Move the cursor over a normal application window
-3. Hold the selected mouse button for 1 second
+3. Hold the selected mouse button for the configured delay
 4. Release the button
 
 Expected result:
 - Ghost Mode activates after the hold delay
 - releasing the selected mouse button deactivates Ghost Mode
 
-#### 8. Mouse conflict blocking
+#### 9. Mouse conflict blocking
 
 1. In mouse mode, press another mouse button before the selected activation button
 2. Try to activate Ghost Mode
@@ -193,7 +223,7 @@ Expected result:
 - conflicting button usage blocks activation
 - Ghost Mode does not activate incorrectly
 
-#### 9. Profile switching
+#### 10. Profile switching
 
 1. Activate Ghost Mode
 2. Press `Ctrl+Shift+Up`
@@ -204,7 +234,7 @@ Expected result:
 - transparency updates immediately
 - tooltip reflects the currently active profile
 
-#### 10. Tooltip and sound
+#### 11. Tooltip and sound
 
 1. Activate Ghost Mode
 2. Deactivate Ghost Mode
@@ -214,14 +244,14 @@ Expected result:
 - a short beep plays on activation
 - a short beep plays on deactivation
 
-#### 11. Settings path rename
+#### 12. Settings path rename
 
 1. After launch, check for `%APPDATA%\GhostThrough\settings.json`
 
 Expected result:
 - settings are written to the new `GhostThrough` app data folder
 
-#### 12. Legacy settings migration
+#### 13. Legacy settings migration
 
 1. Prepare only `%APPDATA%\PeekThrough\settings.json`
 2. Ensure `%APPDATA%\GhostThrough\settings.json` does not exist
@@ -232,7 +262,7 @@ Expected result:
 - settings are copied correctly
 - `%APPDATA%\PeekThrough\settings.json` remains intact
 
-#### 13. Logging
+#### 14. Logging
 
 1. Launch the app
 2. Perform a few activation and deactivation actions
@@ -246,7 +276,7 @@ Expected result:
 - `GHOSTTHROUGH_LOG_LEVEL=INFO` reduces verbose debug logging
 - legacy `PEEKTHROUGH_LOG_LEVEL=INFO` still works as a fallback
 
-#### 14. Shutdown
+#### 15. Shutdown
 
 1. Activate Ghost Mode
 2. Exit through the tray menu

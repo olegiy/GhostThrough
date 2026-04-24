@@ -25,18 +25,19 @@ The app ignores shell windows such as the desktop and taskbar, restores modified
 
 ## Current Behavior
 
-Activation delay is always `1 second`, but keyboard and mouse modes behave differently after activation.
+Activation uses a configurable hold delay. After that delay, the selected activation mode controls whether Ghost Mode stays on or only lasts while the activation input remains pressed.
 
 ### Keyboard mode
 
-- Hold the activation key for 1 second to activate Ghost Mode.
-- After activation, releasing the key keeps Ghost Mode active.
-- Press the activation key briefly again to deactivate Ghost Mode.
+- Hold the activation key for the configured delay to activate Ghost Mode.
+- In `Hold` mode, releasing the key keeps Ghost Mode active.
+- In `Click` mode, releasing the key deactivates Ghost Mode.
+- In `Hold` mode, press the activation key briefly again to deactivate Ghost Mode.
 - Press `Esc` at any time during Ghost Mode for an immediate exit.
 
 ### Mouse mode
 
-- Hold the selected mouse button for 1 second to activate Ghost Mode.
+- Hold the selected mouse button for the configured delay to activate Ghost Mode.
 - Releasing the selected mouse button deactivates Ghost Mode.
 - If another mouse button is pressed before the selected one, activation is blocked.
 - If another mouse button is pressed while the selected one is being held, that activation attempt is also blocked.
@@ -51,10 +52,15 @@ Activation delay is always `1 second`, but keyboard and mouse modes behave diffe
 
 ## Activation Options
 
-GhostThrough supports two activation modes:
+GhostThrough supports two activation input methods:
 
 - Keyboard activation
 - Mouse activation
+
+It also supports two activation behavior modes:
+
+- `Hold` - after the hold delay, Ghost Mode remains active until a short activation-key press or `Esc`.
+- `Click` - after the hold delay, Ghost Mode remains active only until the activation key is released.
 
 ### Keyboard activation
 
@@ -107,6 +113,8 @@ There is no main window. The tray icon is the primary UI and currently exposes:
 
 - `Activation Key`
 - `Activation Method`
+- `Activation Mode`
+- `Activation Hold Time`
 - `Exit`
 
 `Activation Method` opens a submenu for:
@@ -116,6 +124,13 @@ There is no main window. The tray icon is the primary UI and currently exposes:
 - `Mouse (Right Button)`
 - `Mouse (X1 Button)`
 - `Mouse (X2 Button)`
+
+`Activation Mode` opens a submenu for:
+
+- `Hold`
+- `Click`
+
+`Activation Hold Time` opens a submenu for delay values from `0.3 s` to `1.5 s`.
 
 ## Architecture
 
@@ -151,7 +166,9 @@ Settings are stored as JSON v2 in `%APPDATA%\GhostThrough\settings.json`:
   "Activation": {
     "Type": "keyboard",
     "KeyCode": 91,
-    "MouseButton": 4
+    "MouseButton": 4,
+    "ActivationDelayMs": 1000,
+    "Mode": "hold"
   },
   "Profiles": {
     "List": [
@@ -203,6 +220,7 @@ The repository includes a standalone regression test for keyboard-hook and activ
 It currently verifies:
 
 - activation-type string conversions
+- activation-mode string conversions and keyboard `Click` behavior
 - activation-key catalog exposure
 - `IActivationHost` access to the controller activation key
 - keyboard-hook ordering around activation key handling

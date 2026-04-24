@@ -9,6 +9,12 @@ namespace GhostThrough
         Mouse
     }
 
+    internal enum ActivationMode
+    {
+        Hold,
+        Click
+    }
+
     /// <summary>
     /// Tracks activation key/mouse state, manages timers, fires activation events
     /// </summary>
@@ -27,6 +33,7 @@ namespace GhostThrough
         private bool _timerFired;
         private bool _suppressActivationKey;
         private ActivationInputType _activationType;
+        private ActivationMode _activationMode;
 
         // Timers
         private Timer _activationTimer;
@@ -71,6 +78,12 @@ namespace GhostThrough
             set { lock (_lockObject) _activationType = value; }
         }
 
+        public ActivationMode CurrentActivationMode
+        {
+            get { lock (_lockObject) return _activationMode; }
+            set { lock (_lockObject) _activationMode = value; }
+        }
+
         public bool TimerFired
         {
             get { return _timerFired; }
@@ -94,9 +107,10 @@ namespace GhostThrough
             }
         }
 
-        public ActivationStateManager(ActivationInputType activationType, int activationDelayMs = DEFAULT_ACTIVATION_DELAY_MS)
+        public ActivationStateManager(ActivationInputType activationType, int activationDelayMs = DEFAULT_ACTIVATION_DELAY_MS, ActivationMode activationMode = ActivationMode.Hold)
         {
             _activationType = activationType;
+            _activationMode = activationMode;
             _activationDelayMs = NormalizeActivationDelayMs(activationDelayMs);
             InitializeTimers();
         }
@@ -172,9 +186,14 @@ namespace GhostThrough
 
                 if (_ghostModeActive)
                 {
-                    // Toggle mode: short press deactivates
-                    if (!_timerFired)
+                    if (_activationMode == ActivationMode.Click)
                     {
+                        DebugLogger.Log("ActivationStateManager: Click mode key released - deactivating");
+                        DeactivateGhostMode();
+                    }
+                    else if (!_timerFired)
+                    {
+                        // Hold mode: short press while active deactivates.
                         DebugLogger.Log("ActivationStateManager: Short press while active - deactivating");
                         DeactivateGhostMode();
                     }

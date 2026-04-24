@@ -186,6 +186,13 @@ namespace GhostThrough
                 changed = true;
             }
 
+            string normalizedMode = settings.Activation.Mode.ToActivationMode().ToSettingsValue();
+            if (!string.Equals(settings.Activation.Mode, normalizedMode, StringComparison.OrdinalIgnoreCase))
+            {
+                settings.Activation.Mode = normalizedMode;
+                changed = true;
+            }
+
             return changed;
         }
 

@@ -12,6 +12,7 @@ namespace GhostThrough
         private readonly ToolStripMenuItem _activationKeyMenuItem;
         private readonly ToolStripMenuItem _activationMethodMenuItem;
         private readonly ToolStripMenuItem _activationDelayMenuItem;
+        private readonly ToolStripMenuItem _activationModeMenuItem;
         private bool _disposed;
 
         public TrayMenuController(AppContext appContext)
@@ -33,6 +34,7 @@ namespace GhostThrough
             _activationKeyMenuItem = BuildActivationKeyMenuItem();
             _activationMethodMenuItem = BuildActivationMethodMenuItem();
             _activationDelayMenuItem = BuildActivationDelayMenuItem();
+            _activationModeMenuItem = BuildActivationModeMenuItem();
             _menu = BuildMenu();
 
             _trayIcon.ContextMenuStrip = _menu;
@@ -46,6 +48,7 @@ namespace GhostThrough
             menu.Closed += OnMenuClosed;
             menu.Items.Add(_activationKeyMenuItem);
             menu.Items.Add(_activationMethodMenuItem);
+            menu.Items.Add(_activationModeMenuItem);
             menu.Items.Add(_activationDelayMenuItem);
             menu.Items.Add(new ToolStripSeparator());
 
@@ -132,6 +135,22 @@ namespace GhostThrough
             return item;
         }
 
+        private ToolStripMenuItem BuildActivationModeMenuItem()
+        {
+            var item = new ToolStripMenuItem("Activation Mode");
+            item.DropDownOpening += (s, e) => RefreshActivationModeMenu(item);
+
+            var holdItem = new ToolStripMenuItem("Hold", null, OnActivationModeHoldClick);
+            holdItem.Tag = ActivationMode.Hold;
+            item.DropDownItems.Add(holdItem);
+
+            var clickItem = new ToolStripMenuItem("Click", null, OnActivationModeClickClick);
+            clickItem.Tag = ActivationMode.Click;
+            item.DropDownItems.Add(clickItem);
+
+            return item;
+        }
+
         private void RefreshActivationMethodMenu(ToolStripMenuItem item)
         {
             var activationType = _appContext.Settings.Activation.Type.ToActivationInputType();
@@ -199,6 +218,20 @@ namespace GhostThrough
             }
         }
 
+        private void RefreshActivationModeMenu(ToolStripMenuItem item)
+        {
+            var selectedMode = _appContext.Settings.Activation.Mode.ToActivationMode();
+
+            foreach (ToolStripItem dropDownItem in item.DropDownItems)
+            {
+                var modeItem = dropDownItem as ToolStripMenuItem;
+                if (modeItem == null || !(modeItem.Tag is ActivationMode))
+                    continue;
+
+                modeItem.Checked = (ActivationMode)modeItem.Tag == selectedMode;
+            }
+        }
+
         private void OnActivationKeyClick(object sender, EventArgs e)
         {
             if (_disposed)
@@ -253,12 +286,30 @@ namespace GhostThrough
             _appContext.ReconfigureActivationDelay(activationDelayMs);
         }
 
+        private void OnActivationModeHoldClick(object sender, EventArgs e)
+        {
+            ReconfigureActivationMode(ActivationMode.Hold);
+        }
+
+        private void OnActivationModeClickClick(object sender, EventArgs e)
+        {
+            ReconfigureActivationMode(ActivationMode.Click);
+        }
+
         private void ReconfigureActivationMethod(ActivationInputType activationType, int mouseButton)
         {
             if (_disposed)
                 return;
 
             _appContext.Reconfigure(activationType, _appContext.Settings.Activation.KeyCode, mouseButton);
+        }
+
+        private void ReconfigureActivationMode(ActivationMode activationMode)
+        {
+            if (_disposed)
+                return;
+
+            _appContext.ReconfigureActivationMode(activationMode);
         }
 
         public void Dispose()

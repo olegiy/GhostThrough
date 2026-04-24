@@ -76,10 +76,16 @@ namespace GhostThrough
             set { _activationState.ActivationDelayMs = value; }
         }
 
-        public GhostController(ActivationInputType activationType, ProfileManager profileManager, int activationDelayMs = ActivationStateManager.DEFAULT_ACTIVATION_DELAY_MS)
+        public ActivationMode CurrentActivationMode
+        {
+            get { return _activationState.CurrentActivationMode; }
+            set { _activationState.CurrentActivationMode = value; }
+        }
+
+        public GhostController(ActivationInputType activationType, ProfileManager profileManager, int activationDelayMs = ActivationStateManager.DEFAULT_ACTIVATION_DELAY_MS, ActivationMode activationMode = ActivationMode.Hold)
         {
             _transparencyManager = new WindowTransparencyManager();
-            _activationState = new ActivationStateManager(activationType, activationDelayMs);
+            _activationState = new ActivationStateManager(activationType, activationDelayMs, activationMode);
             _tooltipService = new TooltipService();
             _profileManager = profileManager ?? new ProfileManager((IEnumerable<Profile>)null);
             _hotkeyManager = new HotkeyManager();
