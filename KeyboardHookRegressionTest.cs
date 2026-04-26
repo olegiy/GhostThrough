@@ -56,7 +56,9 @@ namespace GhostThrough.Tests
                 ShouldTreatKeyAsPressedImmediatelyAfterActivationKeyDown();
                 ShouldTriggerKeyboardHandoffOnFirstOtherKeyDuringHold();
                 ShouldSkipActivationKeyUpAfterKeyboardHandoff();
-                ShouldReinjectWinKeyDownOnKeyboardHandoffAfterSuppression();
+                ShouldReplayCompleteWinShortcutOnKeyboardHandoffAfterSuppression();
+                ShouldReplayWinShortcutWhenSuppressionStartsAfterActivationTimer();
+                ShouldSuppressPhysicalKeyUpsAfterCompleteKeyboardHandoffReplay();
                 ShouldDeactivateGhostModeImmediatelyOnKeyboardHandoff();
                 ShouldCancelPendingKeyboardHoldWithoutDeactivationWhenGhostModeInactive();
                 ShouldRejectModifierActivationKeysToAvoidShortcutBlocking();
@@ -160,14 +162,15 @@ namespace GhostThrough.Tests
             }
         }
 
-        private static void ShouldReinjectWinKeyDownOnKeyboardHandoffAfterSuppression()
+        private static void ShouldReplayCompleteWinShortcutOnKeyboardHandoffAfterSuppression()
         {
             var host = new TestActivationHost { ShouldSuppressActivationKey = true };
             var syncContext = new QueuedSynchronizationContext();
             var hook = CreateKeyboardHookForTest(host, syncContext);
             int sendInputCalls = 0;
             int inputCount = 0;
-            ushort[] replayedVirtualKeys = new ushort[2];
+            ushort[] replayedVirtualKeys = new ushort[4];
+            uint[] replayedFlags = new uint[4];
 
             try
             {
@@ -180,8 +183,11 @@ namespace GhostThrough.Tests
                         inputCount = (int)count;
                         if (inputs != null)
                         {
-                            for (int i = 0; i < System.Math.Min((int)count, 2); i++)
+                            for (int i = 0; i < System.Math.Min((int)count, 4); i++)
+                            {
                                 replayedVirtualKeys[i] = inputs[i].U.ki.wVk;
+                                replayedFlags[i] = inputs[i].U.ki.dwFlags;
+                            }
                         }
                         return count;
                     }));
@@ -196,10 +202,10 @@ namespace GhostThrough.Tests
                         string.Format("FAIL: Keyboard handoff called SendInput {0} times instead of once.", sendInputCalls));
                 }
 
-                if (inputCount != 2)
+                if (inputCount != 4)
                 {
                     throw new InvalidOperationException(
-                        string.Format("FAIL: Keyboard handoff sent {0} inputs instead of Win+H (2).", inputCount));
+                        string.Format("FAIL: Keyboard handoff sent {0} inputs instead of a complete Win+H replay (4).", inputCount));
                 }
 
                 if (replayedVirtualKeys[0] != NativeMethods.VK_LWIN)
@@ -208,11 +214,98 @@ namespace GhostThrough.Tests
                         string.Format("FAIL: First injected key was vkCode={0} instead of Left Win.", replayedVirtualKeys[0]));
                 }
 
+                if (replayedFlags[0] != NativeMethods.KEYEVENTF_EXTENDEDKEY)
+                {
+                    throw new InvalidOperationException(
+                        string.Format("FAIL: First injected Left Win input did not use extended-key flags. flags={0}.", replayedFlags[0]));
+                }
+
                 if (replayedVirtualKeys[1] != 0x48)
                 {
                     throw new InvalidOperationException(
                         string.Format("FAIL: Second injected key was vkCode={0} instead of H (0x48).", replayedVirtualKeys[1]));
                 }
+
+                if (replayedVirtualKeys[2] != 0x48 || replayedFlags[2] != NativeMethods.KEYEVENTF_KEYUP)
+                {
+                    throw new InvalidOperationException(
+                        string.Format("FAIL: Third injected input was not H key-up. vkCode={0}, flags={1}.", replayedVirtualKeys[2], replayedFlags[2]));
+                }
+
+                uint expectedWinKeyUpFlags = NativeMethods.KEYEVENTF_EXTENDEDKEY | NativeMethods.KEYEVENTF_KEYUP;
+                if (replayedVirtualKeys[3] != NativeMethods.VK_LWIN || replayedFlags[3] != expectedWinKeyUpFlags)
+                {
+                    throw new InvalidOperationException(
+                        string.Format("FAIL: Fourth injected input was not Left Win key-up. vkCode={0}, flags={1}.", replayedVirtualKeys[3], replayedFlags[3]));
+                }
+            }
+            finally
+            {
+                hook.Dispose();
+            }
+        }
+
+        private static void ShouldSuppressPhysicalKeyUpsAfterCompleteKeyboardHandoffReplay()
+        {
+            var host = new TestActivationHost { ShouldSuppressActivationKey = true };
+            var syncContext = new QueuedSynchronizationContext();
+            var hook = CreateKeyboardHookForTest(host, syncContext);
+
+            try
+            {
+                SetPrivateField(
+                    hook,
+                    "_sendInput",
+                    new Func<uint, NativeMethods.INPUT[], int, uint>((count, inputs, size) => count));
+
+                InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYDOWN, IntPtr.Zero, NativeMethods.VK_LWIN);
+                InvokePrivateMethod(hook, "ProcessOtherKey", 0, (IntPtr)NativeMethods.WM_KEYDOWN, IntPtr.Zero, 0x48);
+
+                var otherKeyUpResult = (IntPtr)InvokePrivateMethod(hook, "ProcessOtherKey", 0, (IntPtr)NativeMethods.WM_KEYUP, IntPtr.Zero, 0x48);
+                var activationKeyUpResult = (IntPtr)InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYUP, IntPtr.Zero, NativeMethods.VK_LWIN);
+
+                if (otherKeyUpResult != (IntPtr)1)
+                    throw new InvalidOperationException("FAIL: Physical H key-up was not suppressed after replaying complete Win+H.");
+
+                if (activationKeyUpResult != (IntPtr)1)
+                    throw new InvalidOperationException("FAIL: Physical Win key-up was not suppressed after replaying complete Win+H.");
+            }
+            finally
+            {
+                hook.Dispose();
+            }
+        }
+
+        private static void ShouldReplayWinShortcutWhenSuppressionStartsAfterActivationTimer()
+        {
+            var host = new TestActivationHost { ShouldSuppressActivationKey = false };
+            var syncContext = new QueuedSynchronizationContext();
+            var hook = CreateKeyboardHookForTest(host, syncContext);
+            int sendInputCalls = 0;
+
+            try
+            {
+                SetPrivateField(
+                    hook,
+                    "_sendInput",
+                    new Func<uint, NativeMethods.INPUT[], int, uint>((count, inputs, size) =>
+                    {
+                        sendInputCalls++;
+                        return count;
+                    }));
+
+                InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYDOWN, IntPtr.Zero, NativeMethods.VK_LWIN);
+                host.ShouldSuppressActivationKey = true;
+
+                var handoffResult = (IntPtr)InvokePrivateMethod(hook, "ProcessOtherKey", 0, (IntPtr)NativeMethods.WM_KEYDOWN, IntPtr.Zero, 0x48);
+                syncContext.Flush();
+
+                if (handoffResult != (IntPtr)1)
+                    throw new InvalidOperationException("FAIL: H key-down was not suppressed when replaying Win+H after activation timer suppression started.");
+
+                if (sendInputCalls != 1)
+                    throw new InvalidOperationException(
+                        string.Format("FAIL: Keyboard handoff replay ran {0} times when suppression started after activation timer.", sendInputCalls));
             }
             finally
             {
@@ -870,13 +963,13 @@ namespace GhostThrough.Tests
             return hook;
         }
 
-        private static void InvokePrivateMethod(object target, string methodName, params object[] args)
+        private static object InvokePrivateMethod(object target, string methodName, params object[] args)
         {
             MethodInfo method = target.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.NonPublic);
             if (method == null)
                 throw new MissingMethodException(target.GetType().FullName, methodName);
 
-            method.Invoke(target, args);
+            return method.Invoke(target, args);
         }
 
         private static object GetPrivateField(object target, string fieldName)

@@ -406,7 +406,7 @@ namespace GhostThrough
             // Activation key up
             inputs[2].type = NativeMethods.INPUT_KEYBOARD;
             inputs[2].U.ki.wVk = (ushort)ActivationKeyCode;
-            inputs[2].U.ki.dwFlags = NativeMethods.KEYEVENTF_KEYUP;
+            inputs[2].U.ki.dwFlags = NativeMethods.KEYEVENTF_EXTENDEDKEY | NativeMethods.KEYEVENTF_KEYUP;
             inputs[2].U.ki.time = 0;
             inputs[2].U.ki.dwExtraInfo = NativeMethods.INJECTED_BY_US;
 

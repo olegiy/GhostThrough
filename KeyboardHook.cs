@@ -28,6 +28,7 @@ namespace GhostThrough
         private bool _keyboardHandoffTriggered = false;
         private bool _suppressedActivationKeyDown = false;
         private int _handoffReplayedVkCode = 0;
+        private bool _suppressNextActivationKeyUpAfterHandoff = false;
 
         public event Action OnActivationKeyDown;
         public event Action OnActivationKeyUp;
@@ -157,6 +158,7 @@ namespace GhostThrough
                 _keyboardHandoffTriggered = false;
                 _suppressedActivationKeyDown = false;
                 _handoffReplayedVkCode = 0;
+                _suppressNextActivationKeyUpAfterHandoff = false;
 
                 if (_pressedKeys.Count > 0)
                 {
@@ -179,6 +181,11 @@ namespace GhostThrough
                     _keyPressedAfterActivation = false;
                     _keyboardHandoffTriggered = false;
                     _handoffReplayedVkCode = 0;
+                    if (_suppressNextActivationKeyUpAfterHandoff)
+                    {
+                        _suppressNextActivationKeyUpAfterHandoff = false;
+                        return (IntPtr)1;
+                    }
                     return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);
                 }
 
@@ -240,11 +247,14 @@ namespace GhostThrough
 
                         PostHandler(_activationHost.OnKeyboardHandoffDuringActivationHold, "Keyboard handoff handler error");
 
-                        if (_suppressedActivationKeyDown)
+                        bool shouldReplayShortcut = _suppressedActivationKeyDown || _activationHost.ShouldSuppressActivationKey;
+                        if (shouldReplayShortcut)
                         {
-                            ReplaySuppressedActivationKeyWithOtherKey(vkCode);
+                            DebugLogger.Log(string.Format("HookCallback: Replaying activation shortcut with vkCode={0}", vkCode));
+                            PostHandler(() => ReplaySuppressedActivationKeyWithOtherKey(vkCode), "Keyboard handoff replay error");
                             _suppressedActivationKeyDown = false;
                             _handoffReplayedVkCode = vkCode;
+                            _suppressNextActivationKeyUpAfterHandoff = true;
                             return (IntPtr)1;
                         }
                     }
@@ -263,7 +273,10 @@ namespace GhostThrough
                 DebugLogger.Log(string.Format("HookCallback: Other key UP, vkCode={0}, remaining: {1}", vkCode, _pressedKeys.Count));
 
                 if (_handoffReplayedVkCode != 0 && vkCode == _handoffReplayedVkCode)
+                {
                     _handoffReplayedVkCode = 0;
+                    return (IntPtr)1;
+                }
             }
 
             return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);
@@ -274,18 +287,32 @@ namespace GhostThrough
             if (_activationHost == null)
                 return;
 
-            NativeMethods.INPUT[] inputs = new NativeMethods.INPUT[2];
+            NativeMethods.INPUT[] inputs = new NativeMethods.INPUT[4];
             inputs[0].type = NativeMethods.INPUT_KEYBOARD;
             inputs[0].U.ki.wVk = (ushort)_activationHost.ActivationKeyCode;
-            inputs[0].U.ki.dwFlags = 0;
+            inputs[0].U.ki.dwFlags = NativeMethods.KEYEVENTF_EXTENDEDKEY;
             inputs[0].U.ki.time = 0;
             inputs[0].U.ki.dwExtraInfo = NativeMethods.INJECTED_BY_US;
+
             inputs[1].type = NativeMethods.INPUT_KEYBOARD;
             inputs[1].U.ki.wVk = (ushort)otherVkCode;
             inputs[1].U.ki.dwFlags = 0;
             inputs[1].U.ki.time = 0;
             inputs[1].U.ki.dwExtraInfo = NativeMethods.INJECTED_BY_US;
-            _sendInput(2, inputs, NativeMethods.INPUT.Size);
+
+            inputs[2].type = NativeMethods.INPUT_KEYBOARD;
+            inputs[2].U.ki.wVk = (ushort)otherVkCode;
+            inputs[2].U.ki.dwFlags = NativeMethods.KEYEVENTF_KEYUP;
+            inputs[2].U.ki.time = 0;
+            inputs[2].U.ki.dwExtraInfo = NativeMethods.INJECTED_BY_US;
+
+            inputs[3].type = NativeMethods.INPUT_KEYBOARD;
+            inputs[3].U.ki.wVk = (ushort)_activationHost.ActivationKeyCode;
+            inputs[3].U.ki.dwFlags = NativeMethods.KEYEVENTF_EXTENDEDKEY | NativeMethods.KEYEVENTF_KEYUP;
+            inputs[3].U.ki.time = 0;
+            inputs[3].U.ki.dwExtraInfo = NativeMethods.INJECTED_BY_US;
+
+            _sendInput(4, inputs, NativeMethods.INPUT.Size);
         }
 
         private void PostHandler(Action handler, string label)

@@ -228,6 +228,7 @@ namespace GhostThrough
         }
         
         public const int INPUT_KEYBOARD = 1;
+        public const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
         public const uint KEYEVENTF_KEYUP = 0x0002;
         
         // Magic value to tag our own injected inputs
