@@ -9,9 +9,12 @@ namespace GhostThrough
 {
     internal class KeyboardHook : IDisposable
     {
+        private const int HOOK_REFRESH_INTERVAL_MS = 300000;
+
         private NativeMethods.LowLevelKeyboardProc _proc;
         private IntPtr _hookID = IntPtr.Zero;
         private SynchronizationContext _syncContext;
+        private System.Windows.Forms.Timer _hookRefreshTimer;
         private bool _disposed = false;
         private IActivationHost _activationHost;
         private Func<uint, NativeMethods.INPUT[], int, uint> _sendInput = NativeMethods.SendInput;
@@ -42,7 +45,8 @@ namespace GhostThrough
             if (_syncContext == null)
                 _syncContext = new SynchronizationContext();
             _hookID = SetHook(_proc);
-            DebugLogger.Log(string.Format("KeyboardHook initialized, hook ID: {0}", _hookID));
+            LogHookInstallation("KeyboardHook initialized");
+            InitializeHookRefreshTimer();
         }
 
         public void Dispose()
@@ -65,7 +69,42 @@ namespace GhostThrough
                 NativeMethods.UnhookWindowsHookEx(hookToDispose);
             }
 
+            if (_hookRefreshTimer != null)
+            {
+                _hookRefreshTimer.Stop();
+                _hookRefreshTimer.Dispose();
+                _hookRefreshTimer = null;
+            }
+
             GC.SuppressFinalize(this);
+        }
+
+        public void RefreshHook(string reason)
+        {
+            IntPtr oldHook = IntPtr.Zero;
+            IntPtr newHook = IntPtr.Zero;
+
+            lock (this)
+            {
+                if (_disposed)
+                    return;
+
+                newHook = SetHook(_proc);
+                if (newHook == IntPtr.Zero)
+                {
+                    DebugLogger.LogInfo(string.Format("KeyboardHook.RefreshHook failed ({0}), last error: {1}", reason, Marshal.GetLastWin32Error()));
+                    return;
+                }
+
+                oldHook = _hookID;
+                _hookID = newHook;
+                ResetTransientState();
+            }
+
+            DebugLogger.LogInfo(string.Format("KeyboardHook refreshed ({0}), old hook ID: {1}, new hook ID: {2}", reason, oldHook, newHook));
+
+            if (oldHook != IntPtr.Zero)
+                NativeMethods.UnhookWindowsHookEx(oldHook);
         }
 
         private IntPtr SetHook(NativeMethods.LowLevelKeyboardProc proc)
@@ -76,6 +115,44 @@ namespace GhostThrough
                 return NativeMethods.SetWindowsHookEx(NativeMethods.WH_KEYBOARD_LL, proc,
                     NativeMethods.GetModuleHandle(curModule.ModuleName), 0);
             }
+        }
+
+        private void InitializeHookRefreshTimer()
+        {
+            _hookRefreshTimer = new System.Windows.Forms.Timer();
+            _hookRefreshTimer.Interval = HOOK_REFRESH_INTERVAL_MS;
+            _hookRefreshTimer.Tick += OnHookRefreshTimerTick;
+            _hookRefreshTimer.Start();
+        }
+
+        private void OnHookRefreshTimerTick(object sender, EventArgs e)
+        {
+            RefreshHook("periodic watchdog");
+        }
+
+        private void LogHookInstallation(string message)
+        {
+            if (_hookID == IntPtr.Zero)
+            {
+                DebugLogger.LogInfo(string.Format("{0}, hook ID: {1}, last error: {2}", message, _hookID, Marshal.GetLastWin32Error()));
+                return;
+            }
+
+            DebugLogger.LogInfo(string.Format("{0}, hook ID: {1}", message, _hookID));
+        }
+
+        private void ResetTransientState()
+        {
+            _ctrlPressed = false;
+            _shiftPressed = false;
+            _altPressed = false;
+            _pressedKeys.Clear();
+            _keyPressedAfterActivation = false;
+            _isActivationKeyDown = false;
+            _keyboardHandoffTriggered = false;
+            _suppressedActivationKeyDown = false;
+            _handoffReplayedVkCode = 0;
+            _suppressNextActivationKeyUpAfterHandoff = false;
         }
 
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)

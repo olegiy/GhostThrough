@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using GhostThrough.Models;
+using Microsoft.Win32;
 
 namespace GhostThrough
 {
@@ -51,12 +52,18 @@ namespace GhostThrough
         {
             if (ProfileManager != null)
                 ProfileManager.OnProfileChanged += OnProfileChanged;
+
+            SystemEvents.PowerModeChanged += OnPowerModeChanged;
+            SystemEvents.SessionSwitch += OnSessionSwitch;
         }
 
         private void UnwireEvents()
         {
             if (ProfileManager != null)
                 ProfileManager.OnProfileChanged -= OnProfileChanged;
+
+            SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+            SystemEvents.SessionSwitch -= OnSessionSwitch;
         }
 
         private void OnProfileChanged(Profile profile)
@@ -65,6 +72,24 @@ namespace GhostThrough
                 return;
 
             Save();
+        }
+
+        private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e)
+        {
+            if (_shutdown || KeyboardHook == null)
+                return;
+
+            if (e.Mode == PowerModes.Resume)
+                KeyboardHook.RefreshHook("power resume");
+        }
+
+        private void OnSessionSwitch(object sender, SessionSwitchEventArgs e)
+        {
+            if (_shutdown || KeyboardHook == null)
+                return;
+
+            if (e.Reason == SessionSwitchReason.SessionUnlock || e.Reason == SessionSwitchReason.ConsoleConnect || e.Reason == SessionSwitchReason.RemoteConnect)
+                KeyboardHook.RefreshHook(string.Format("session switch: {0}", e.Reason));
         }
 
         public void Reconfigure(ActivationInputType activationType, int activationKeyCode, int mouseButton)
