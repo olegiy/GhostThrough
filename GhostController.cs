@@ -13,6 +13,8 @@ namespace GhostThrough
     /// </summary>
     internal class GhostController : IDisposable, IActivationHost
     {
+        public event Action ReverseWinPassedThrough;
+
         // Components
         private readonly WindowTransparencyManager _transparencyManager;
         private readonly ActivationStateManager _activationState;
@@ -249,6 +251,9 @@ namespace GhostThrough
         private void OnReverseWinShouldPassThrough()
         {
             SendStandaloneWinKey();
+            var handler = ReverseWinPassedThrough;
+            if (handler != null)
+                handler();
         }
 
         public void OnMouseButtonDown()

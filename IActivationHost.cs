@@ -2,6 +2,7 @@ namespace GhostThrough
 {
     internal interface IActivationHost
     {
+        event System.Action ReverseWinPassedThrough;
         int ActivationKeyCode { get; }
         ActivationKeyBehavior ActivationKeyBehavior { get; }
         bool ShouldUseReverseWinKeyBehavior { get; }

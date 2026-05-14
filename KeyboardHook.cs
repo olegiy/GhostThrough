@@ -32,6 +32,7 @@ namespace GhostThrough
         private bool _suppressedActivationKeyDown = false;
         private int _handoffReplayedVkCode = 0;
         private bool _suppressNextActivationKeyUpAfterHandoff = false;
+        private bool _suppressNextReverseWinKeyUp = false;
 
         public event Action OnActivationKeyDown;
         public event Action OnActivationKeyUp;
@@ -44,6 +45,8 @@ namespace GhostThrough
             _syncContext = SynchronizationContext.Current;
             if (_syncContext == null)
                 _syncContext = new SynchronizationContext();
+            if (_activationHost != null)
+                _activationHost.ReverseWinPassedThrough += OnReverseWinPassedThrough;
             _hookID = SetHook(_proc);
             LogHookInstallation("KeyboardHook initialized");
             InitializeHookRefreshTimer();
@@ -75,6 +78,9 @@ namespace GhostThrough
                 _hookRefreshTimer.Dispose();
                 _hookRefreshTimer = null;
             }
+
+            if (_activationHost != null)
+                _activationHost.ReverseWinPassedThrough -= OnReverseWinPassedThrough;
 
             GC.SuppressFinalize(this);
         }
@@ -153,6 +159,7 @@ namespace GhostThrough
             _suppressedActivationKeyDown = false;
             _handoffReplayedVkCode = 0;
             _suppressNextActivationKeyUpAfterHandoff = false;
+            _suppressNextReverseWinKeyUp = false;
         }
 
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -226,6 +233,11 @@ namespace GhostThrough
         {
             DebugLogger.Log(string.Format("HookCallback: Activation key detected (vkCode={0}), wParam={1}", vkCode, wParam));
 
+            if (_activationHost != null && _activationHost.ShouldUseReverseWinKeyBehavior)
+            {
+                return ProcessReverseWinActivationKey(nCode, wParam, lParam);
+            }
+
             Action handler = null;
 
             if (wParam == (IntPtr)NativeMethods.WM_KEYDOWN)
@@ -236,6 +248,7 @@ namespace GhostThrough
                 _suppressedActivationKeyDown = false;
                 _handoffReplayedVkCode = 0;
                 _suppressNextActivationKeyUpAfterHandoff = false;
+                _suppressNextReverseWinKeyUp = false;
 
                 if (_pressedKeys.Count > 0)
                 {
@@ -302,6 +315,59 @@ namespace GhostThrough
 
             // Not suppressed - fire handler normally
             PostHandler(handler, "Hook handler error");
+
+            return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);
+        }
+
+        private IntPtr ProcessReverseWinActivationKey(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (wParam == (IntPtr)NativeMethods.WM_KEYDOWN)
+            {
+                _isActivationKeyDown = true;
+                _keyPressedAfterActivation = false;
+                _keyboardHandoffTriggered = false;
+                _suppressedActivationKeyDown = true;
+                _handoffReplayedVkCode = 0;
+                _suppressNextActivationKeyUpAfterHandoff = false;
+                _suppressNextReverseWinKeyUp = false;
+                PostHandler(_activationHost.OnReverseWinKeyDown, "Reverse Win key down handler error");
+                return (IntPtr)1;
+            }
+
+            if (wParam == (IntPtr)NativeMethods.WM_KEYUP)
+            {
+                _isActivationKeyDown = false;
+                _suppressedActivationKeyDown = false;
+
+                if (_keyboardHandoffTriggered)
+                {
+                    _keyPressedAfterActivation = false;
+                    _keyboardHandoffTriggered = false;
+                    _handoffReplayedVkCode = 0;
+                    if (_suppressNextActivationKeyUpAfterHandoff)
+                    {
+                        _suppressNextActivationKeyUpAfterHandoff = false;
+                        return (IntPtr)1;
+                    }
+                    return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);
+                }
+
+                if (_suppressNextReverseWinKeyUp)
+                {
+                    _suppressNextReverseWinKeyUp = false;
+                    _keyPressedAfterActivation = false;
+                    return (IntPtr)1;
+                }
+
+                if (_keyPressedAfterActivation)
+                {
+                    _keyPressedAfterActivation = false;
+                    return (IntPtr)1;
+                }
+
+                PostHandler(_activationHost.OnReverseWinKeyUp, "Reverse Win key up handler error");
+                return (IntPtr)1;
+            }
 
             return NativeMethods.CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
@@ -390,6 +456,11 @@ namespace GhostThrough
             inputs[3].U.ki.dwExtraInfo = NativeMethods.INJECTED_BY_US;
 
             _sendInput(4, inputs, NativeMethods.INPUT.Size);
+        }
+
+        private void OnReverseWinPassedThrough()
+        {
+            _suppressNextReverseWinKeyUp = true;
         }
 
         private void PostHandler(Action handler, string label)

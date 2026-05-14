@@ -58,6 +58,9 @@ namespace GhostThrough.Tests
                 ShouldNotNotifyWhenSettingSameActiveProfile();
  
                 ShouldTreatKeyAsPressedImmediatelyAfterActivationKeyDown();
+                ShouldUseReverseWinHandlersForShortWinPress();
+                ShouldKeepStandardWinOnExistingActivationPath();
+                ShouldSuppressReverseWinKeyUpAfterPassThrough();
                 ShouldTriggerKeyboardHandoffOnFirstOtherKeyDuringHold();
                 ShouldSkipActivationKeyUpAfterKeyboardHandoff();
                 ShouldReplayCompleteWinShortcutOnKeyboardHandoffAfterSuppression();
@@ -104,6 +107,104 @@ namespace GhostThrough.Tests
             finally
             {
                 controller.Dispose();
+                hook.Dispose();
+            }
+        }
+
+        private static void ShouldUseReverseWinHandlersForShortWinPress()
+        {
+            var host = new TestActivationHost
+            {
+                ActivationKeyCode = NativeMethods.VK_LWIN,
+                ActivationKeyBehavior = ActivationKeyBehavior.WinReverse,
+                ShouldUseReverseWinKeyBehavior = true,
+                ShouldSuppressActivationKey = true
+            };
+            var syncContext = new QueuedSynchronizationContext();
+            var hook = CreateKeyboardHookForTest(host, syncContext);
+
+            try
+            {
+                var downResult = (IntPtr)InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYDOWN, IntPtr.Zero, NativeMethods.VK_LWIN);
+                var upResult = (IntPtr)InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYUP, IntPtr.Zero, NativeMethods.VK_LWIN);
+                syncContext.Flush();
+
+                if (downResult != (IntPtr)1 || upResult != (IntPtr)1)
+                    throw new InvalidOperationException("FAIL: Reverse Win short press did not suppress physical Win down/up events.");
+
+                if (host.ReverseWinKeyDownCount != 1 || host.ReverseWinKeyUpCount != 1)
+                    throw new InvalidOperationException("FAIL: Reverse Win short press did not use reverse Win handlers exactly once.");
+
+                if (host.ActivationKeyDownCount != 0 || host.ActivationKeyUpCount != 0)
+                    throw new InvalidOperationException("FAIL: Reverse Win short press used standard activation handlers.");
+            }
+            finally
+            {
+                hook.Dispose();
+            }
+        }
+
+        private static void ShouldKeepStandardWinOnExistingActivationPath()
+        {
+            var host = new TestActivationHost
+            {
+                ActivationKeyCode = NativeMethods.VK_LWIN,
+                ActivationKeyBehavior = ActivationKeyBehavior.Standard,
+                ShouldUseReverseWinKeyBehavior = false,
+                ShouldSuppressActivationKey = true
+            };
+            var syncContext = new QueuedSynchronizationContext();
+            var hook = CreateKeyboardHookForTest(host, syncContext);
+
+            try
+            {
+                hook.OnActivationKeyDown += host.OnActivationInputDown;
+                hook.OnActivationKeyUp += host.OnActivationInputUp;
+
+                InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYDOWN, IntPtr.Zero, NativeMethods.VK_LWIN);
+                InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYUP, IntPtr.Zero, NativeMethods.VK_LWIN);
+                syncContext.Flush();
+
+                if (host.ActivationKeyDownCount != 1 || host.ActivationKeyUpCount != 1)
+                    throw new InvalidOperationException("FAIL: Win standard did not use existing activation handlers.");
+
+                if (host.ReverseWinKeyDownCount != 0 || host.ReverseWinKeyUpCount != 0)
+                    throw new InvalidOperationException("FAIL: Win standard incorrectly used reverse Win handlers.");
+            }
+            finally
+            {
+                hook.Dispose();
+            }
+        }
+
+        private static void ShouldSuppressReverseWinKeyUpAfterPassThrough()
+        {
+            var host = new TestActivationHost
+            {
+                ActivationKeyCode = NativeMethods.VK_LWIN,
+                ActivationKeyBehavior = ActivationKeyBehavior.WinReverse,
+                ShouldUseReverseWinKeyBehavior = true,
+                ShouldSuppressActivationKey = true
+            };
+            var syncContext = new QueuedSynchronizationContext();
+            var hook = CreateKeyboardHookForTest(host, syncContext);
+
+            try
+            {
+                InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYDOWN, IntPtr.Zero, NativeMethods.VK_LWIN);
+                InvokePrivateMethod(hook, "OnReverseWinPassedThrough");
+
+                var upResult = (IntPtr)InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYUP, IntPtr.Zero, NativeMethods.VK_LWIN);
+                syncContext.Flush();
+
+                if (upResult != (IntPtr)1)
+                    throw new InvalidOperationException("FAIL: Reverse Win physical key-up after pass-through was not suppressed.");
+
+                if (host.ReverseWinKeyUpCount != 0)
+                    throw new InvalidOperationException("FAIL: Reverse Win pass-through key-up triggered short-press toggle handling.");
+            }
+            finally
+            {
                 hook.Dispose();
             }
         }
@@ -1063,8 +1164,12 @@ namespace GhostThrough.Tests
             public int KeyboardHandoffCount { get; private set; }
             public int ActivationKeyDownCount { get; private set; }
             public int ActivationKeyUpCount { get; private set; }
+            public int ReverseWinKeyDownCount { get; private set; }
+            public int ReverseWinKeyUpCount { get; private set; }
+            public int ReverseWinPassThroughCount { get; private set; }
             public int BlockBeforeActivationCount { get; private set; }
             public int DeactivateRequestCount { get; private set; }
+            public event Action ReverseWinPassedThrough;
 
             public void OnActivationInputDown()
             {
@@ -1088,14 +1193,24 @@ namespace GhostThrough.Tests
 
             public void OnReverseWinKeyDown()
             {
+                ReverseWinKeyDownCount++;
             }
 
             public void OnReverseWinKeyUp()
             {
+                ReverseWinKeyUpCount++;
             }
 
             public void OnReverseWinKeyPassThrough()
             {
+                ReverseWinPassThroughCount++;
+            }
+
+            public void RaiseReverseWinPassedThrough()
+            {
+                var handler = ReverseWinPassedThrough;
+                if (handler != null)
+                    handler();
             }
 
             public bool ProcessHotkey(int vkCode, bool isDown, bool ctrl, bool shift, bool alt)
