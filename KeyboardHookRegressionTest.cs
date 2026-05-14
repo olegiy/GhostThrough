@@ -64,6 +64,8 @@ namespace GhostThrough.Tests
                 ShouldTriggerKeyboardHandoffOnFirstOtherKeyDuringHold();
                 ShouldSkipActivationKeyUpAfterKeyboardHandoff();
                 ShouldReplayCompleteWinShortcutOnKeyboardHandoffAfterSuppression();
+                ShouldReplayWinShortcutInReverseWinMode();
+                ShouldIgnoreReverseBehaviorForNonWinActivationKey();
                 ShouldReplayWinShortcutWhenSuppressionStartsAfterActivationTimer();
                 ShouldSuppressPhysicalKeyUpsAfterCompleteKeyboardHandoffReplay();
                 ShouldDeactivateGhostModeImmediatelyOnKeyboardHandoff();
@@ -344,6 +346,82 @@ namespace GhostThrough.Tests
                     throw new InvalidOperationException(
                         string.Format("FAIL: Fourth injected input was not Left Win key-up. vkCode={0}, flags={1}.", replayedVirtualKeys[3], replayedFlags[3]));
                 }
+            }
+            finally
+            {
+                hook.Dispose();
+            }
+        }
+
+        private static void ShouldReplayWinShortcutInReverseWinMode()
+        {
+            var host = new TestActivationHost
+            {
+                ActivationKeyCode = NativeMethods.VK_LWIN,
+                ActivationKeyBehavior = ActivationKeyBehavior.WinReverse,
+                ShouldUseReverseWinKeyBehavior = true,
+                ShouldSuppressActivationKey = true
+            };
+            var syncContext = new QueuedSynchronizationContext();
+            var hook = CreateKeyboardHookForTest(host, syncContext);
+            int sendInputCalls = 0;
+
+            try
+            {
+                SetPrivateField(
+                    hook,
+                    "_sendInput",
+                    new Func<uint, NativeMethods.INPUT[], int, uint>((count, inputs, size) =>
+                    {
+                        sendInputCalls++;
+                        return count;
+                    }));
+
+                InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYDOWN, IntPtr.Zero, NativeMethods.VK_LWIN);
+                var handoffResult = (IntPtr)InvokePrivateMethod(hook, "ProcessOtherKey", 0, (IntPtr)NativeMethods.WM_KEYDOWN, IntPtr.Zero, 0x48);
+                syncContext.Flush();
+
+                if (handoffResult != (IntPtr)1)
+                    throw new InvalidOperationException("FAIL: Reverse Win handoff did not suppress the physical shortcut key-down while replaying.");
+
+                if (sendInputCalls != 1)
+                    throw new InvalidOperationException("FAIL: Reverse Win handoff did not replay Win+key shortcut exactly once.");
+
+                if (host.KeyboardHandoffCount != 1)
+                    throw new InvalidOperationException("FAIL: Reverse Win handoff did not cancel pending activation exactly once.");
+            }
+            finally
+            {
+                hook.Dispose();
+            }
+        }
+
+        private static void ShouldIgnoreReverseBehaviorForNonWinActivationKey()
+        {
+            var host = new TestActivationHost
+            {
+                ActivationKeyCode = NativeMethods.VK_SPACE,
+                ActivationKeyBehavior = ActivationKeyBehavior.WinReverse,
+                ShouldUseReverseWinKeyBehavior = false,
+                ShouldSuppressActivationKey = true
+            };
+            var syncContext = new QueuedSynchronizationContext();
+            var hook = CreateKeyboardHookForTest(host, syncContext);
+
+            try
+            {
+                hook.OnActivationKeyDown += host.OnActivationInputDown;
+                hook.OnActivationKeyUp += host.OnActivationInputUp;
+
+                InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYDOWN, IntPtr.Zero, NativeMethods.VK_SPACE);
+                InvokePrivateMethod(hook, "ProcessActivationKey", 0, (IntPtr)NativeMethods.WM_KEYUP, IntPtr.Zero, NativeMethods.VK_SPACE);
+                syncContext.Flush();
+
+                if (host.ActivationKeyDownCount != 1 || host.ActivationKeyUpCount != 1)
+                    throw new InvalidOperationException("FAIL: Non-Win activation key did not use standard activation handlers.");
+
+                if (host.ReverseWinKeyDownCount != 0 || host.ReverseWinKeyUpCount != 0)
+                    throw new InvalidOperationException("FAIL: Non-Win activation key used reverse Win handlers.");
             }
             finally
             {
