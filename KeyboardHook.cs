@@ -9,7 +9,7 @@ namespace GhostThrough
 {
     internal class KeyboardHook : IDisposable
     {
-        private const int HOOK_REFRESH_INTERVAL_MS = 300000;
+        private const int HOOK_REFRESH_INTERVAL_MS = 60000;
 
         private NativeMethods.LowLevelKeyboardProc _proc;
         private IntPtr _hookID = IntPtr.Zero;

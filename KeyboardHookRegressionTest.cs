@@ -62,6 +62,7 @@ namespace GhostThrough.Tests
                 ShouldDeactivateGhostModeImmediatelyOnKeyboardHandoff();
                 ShouldCancelPendingKeyboardHoldWithoutDeactivationWhenGhostModeInactive();
                 ShouldRejectModifierActivationKeysToAvoidShortcutBlocking();
+                ShouldUseOneMinuteKeyboardHookWatchdogInterval();
                 ShouldFlushQueuedLogEntries();
                 Console.WriteLine("PASS");
                 return 0;
@@ -905,6 +906,20 @@ namespace GhostThrough.Tests
             if (!content.Contains("test-log-entry"))
             {
                 throw new InvalidOperationException("FAIL: DebugLogger.Flush did not persist queued entries.");
+            }
+        }
+
+        private static void ShouldUseOneMinuteKeyboardHookWatchdogInterval()
+        {
+            FieldInfo field = typeof(KeyboardHook).GetField("HOOK_REFRESH_INTERVAL_MS", BindingFlags.Static | BindingFlags.NonPublic);
+            if (field == null)
+                throw new MissingFieldException(typeof(KeyboardHook).FullName, "HOOK_REFRESH_INTERVAL_MS");
+
+            int interval = (int)field.GetRawConstantValue();
+            if (interval != 60000)
+            {
+                throw new InvalidOperationException(
+                    string.Format("FAIL: Keyboard hook watchdog interval is {0} ms instead of 60000 ms.", interval));
             }
         }
 
